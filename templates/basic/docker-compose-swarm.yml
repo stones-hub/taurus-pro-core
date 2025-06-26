@@ -1,0 +1,110 @@
+version: '3.7'
+
+# 如果要使用mcp的sse模式，由于sse协议的特性，同一个客户端需要同一个session，所以swarm集群模式下，需要做如下变更 
+# 1. nginx的配置需要使用ip_hash模式，否则会导致同一个客户端的请求被分配到不同的nginx实例，从而导致sse连接失败
+# 2. app副本的路由模式需要使用dnsrr模式，否则会导致同一个客户端的请求被分配到不同的app实例，从而导致sse连接失败
+# 3. nginx需要支持/see特殊的协议
+# 4. 一旦需要更新app，需要重新部署nginx和app（因为dnssr导致如果只更新, nginx不会自动更新到新的副本IP上）
+
+# 在 Docker Swarm 中，endpoint_mode 有两种模式：
+# VIP (Virtual IP) 模式:
+# 描述: 在 VIP 模式下，Swarm 为服务分配一个虚拟 IP 地址。所有请求都会通过这个虚拟 IP 地址进行负载均衡，然后转发到服务的各个任务实例。
+# 特点: 这种模式提供了一个单一的入口点，适合需要负载均衡的场景。
+# 默认模式: VIP 是 Docker Swarm 的默认 endpoint_mode。
+# DNSRR (DNS Round Robin) 模式:
+# 描述: 在 DNSRR 模式下，Swarm 使用 DNS 轮询的方式来分发请求。每个任务实例都有自己的 IP 地址，客户端通过 DNS 解析获取这些地址，并进行轮询访问。
+# 特点: 这种模式不提供负载均衡功能，适合需要直接访问各个任务实例的场景。
+# 默认情况下，Docker Swarm 使用 VIP 模式来管理服务的网络流量。
+
+services:
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "9527:80"
+    volumes:
+      - ./scripts/config/nginx.conf:/etc/nginx/nginx.conf
+      - nginx_logs:/var/log/nginx  # 使用命名卷持久化日志
+    networks:
+      - taurus-network-swarm
+    deploy:
+      replicas: 1  # 确保只有一个 Nginx 实例
+
+  app:
+    image: ${REGISTRY_URL}/${APP_NAME}:${VERSION} # 设置镜像名称
+    environment: # 给容器设置环境变量
+      - MYSQL_DSN=${DB_DSN:-apps:apps@tcp(mysql:3306)/kf_ai?charset=utf8mb4&parseTime=True&loc=Local}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379} # 设置redis连接
+    env_file: # 设置环境变量文件
+      - .env.docker-compose # 设置环境变量文件
+    healthcheck: # 如果健康检查不通过，容器会一直自动重启
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s # 延长启动等待时间，确保 mysql 和 redis 已准备好
+    volumes: 
+      - taurus_logs:${WORKDIR:-/app}/logs # 设置卷, 将容器生成的日志文件挂载到本地卷
+      - taurus_downloads:${WORKDIR:-/app}/downloads # 设置卷, 将容器生成的下载文件挂载到本地卷
+    networks:
+      - taurus-network-swarm
+    deploy:
+      replicas: 5  # 设置为 5 个应用实例
+      update_config: # 配置服务更新策略的
+        parallelism: 2 # 设置并行更新数量
+        delay: 10s # 设置更新延迟时间
+      restart_policy:
+        condition: on-failure # 设置重启策略,当容器因失败而退出时才会重启。
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-kf_ai} 
+      MYSQL_USER: ${DB_USER:-apps}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-apps}
+    healthcheck: # 设置健康检查
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    env_file:
+      - .env.docker-compose
+    volumes:
+      - db_data:/var/lib/mysql # 设置卷
+      - ./scripts/data/init_mysql:/docker-entrypoint-initdb.d # 设置卷, 初始化数据库，执行sql文件(凡是放在这个目录下的sql文件都会被执行)
+    networks:
+      - taurus-network-swarm
+    deploy:
+      replicas: 1  # 确保只有一个 MySQL 实例
+
+  redis:
+    image: redis:6 
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - taurus-network-swarm
+    volumes:
+      - redis_data:/data 
+    deploy:
+      replicas: 1  # 确保只有一个 Redis 实例
+
+# 定义卷需要创建的所有卷
+volumes:
+  db_data:
+  redis_data:
+  nginx_logs:  # 定义 Nginx 日志卷
+  taurus_logs:
+  taurus_downloads:
+
+# 使用 overlay 网络，适用于 Swarm 集群
+networks:
+  taurus-network-swarm:
+    driver: overlay
+
+

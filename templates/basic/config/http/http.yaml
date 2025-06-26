@@ -1,0 +1,5 @@
+server:
+  port: 8080
+  read_timeout: 60
+  write_timeout: 60
+  idle_timeout: 60

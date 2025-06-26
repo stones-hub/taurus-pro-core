@@ -1,0 +1,6 @@
+mcp:
+  transport: "${MCP_TRANSPORT:streamable_http}" # 传输方式，可选值：sse, streamable_http, stdio
+  mode: "${MCP_MODE:stateless}" # 模式，可选值：stateless, stateful
+
+
+

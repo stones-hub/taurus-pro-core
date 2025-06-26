@@ -1,0 +1,9 @@
+tcp:
+  address: ":8080" # 地址，默认是:8080
+  max_connections: 1000 # 最大连接数
+  max_message_size: 1048576 # 最大消息大小 默认1MB
+  buffer_size: 1024 # 缓冲区大小, 默认1024条数据
+  idle_timeout: 5 # 空闲超时时间 默认5分钟
+  rate_limiter: 100 # 每秒100条消息 默认100条
+  protocol: json # 协议类型  json/binary
+  handler: "demo" # 默认handler为 default

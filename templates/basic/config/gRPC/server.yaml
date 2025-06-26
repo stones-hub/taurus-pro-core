@@ -1,0 +1,15 @@
+# configs/grpc.yaml
+grpc:
+  address: ":50051"
+  max_conns: 50000
+  keepalive:
+    enabled: true
+    max_connection_idle: 10 # 空闲连接最长保持时间 单位: 分钟
+    max_connection_age: 30 # 连接在接收到关闭信号，还能保持的时间 单位: 分钟
+    max_connection_age_grace: 10 # MaxConnectionAgeGrace是MaxConnectionAge之后的一个附加周期, 过了这个周期强制关闭 单位: 秒
+    time: 1 # 服务器2小时后发送ping，判断是否连接存活 单位: 小时
+    timeout: 10 # 在Time参数时间后，发送了ping后，如果20秒内没有收到客户端的pong，则关闭连接 单位: 秒
+  tls:
+    enabled: false
+    cert: "certs/server.crt"
+    key: "certs/server.key"

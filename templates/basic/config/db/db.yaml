@@ -1,0 +1,39 @@
+databases:
+  - name: "kf_ai"                           # 数据库名称
+    type: "mysql"                           # 数据库类型 (postgres, mysql, sqlite)
+    host: "${DB_HOST:db_demo}"              # 数据库主机 , 通过环境变量来控制，为了兼容docker和local 两中运行方式
+    port: ${DB_PORT:3306}                   # 数据库端口
+    user: "${DB_USER:apps_demo}"            # 数据库用户名
+    password: "${DB_PASSWORD:apps_demo}"    # 数据库密码
+    dbname: "${DB_NAME:kf_ai_demo}"         # 数据库名称
+    sslmode: "disable"                      # SSL 模式 (仅适用于 PostgreSQL)
+    dsn: "${DB_DSN:apps_demo:apps_demo@tcp(db_demo:3306)/kf_ai_demo?charset=utf8mb4&parseTime=True&loc=Local}"  # 可选，直接提供完整的 DSN 字符串（优先级高于其他字段）
+    max_retries: 10                          # 最大重试次数
+    delay: 15                              # 重试延迟时间 秒
+    logger:                                 # 日志配置
+      log_file_path: "logs/db/kf_ai.log"    # 日志文件路径（为空时输出到控制台）
+      max_size: 10                          # 单个日志文件的最大大小（单位：MB） , 当日志文件路径不为空时生效
+      max_backups: 5                        # 保留的旧日志文件的最大数量 , 当日志文件路径不为空时生效
+      max_age: 30                           # 日志文件的最大保存天数 , 当日志文件路径不为空时生效
+      compress: true                        # 是否压缩旧日志文件 , 当日志文件路径不为空时生效
+      log_level: "info"                     # 日志等级 (silent（静默）、error（错误）、warn（警告）、info（信息）) 
+      slow_threshold: 200                   # 慢查询阈值（单位：毫秒）
+
+  - name: "kf_ai_test"
+    type: "mysql"
+    host: "${DB_HOST:db_demo}"              
+    port: 3306
+    user: "${DB_USER:apps_demo}"
+    password: "${DB_PASSWORD:apps_demo}"
+    dbname: "${DB_NAME:kf_ai_demo}"
+    dsn: "${DB_DSN:apps_demo:apps_demo@tcp(db_demo:3306)/kf_ai_demo?charset=utf8mb4&parseTime=True&loc=Local}"
+    max_retries: 10                          # 最大重试次数
+    delay: 15                               # 重试延迟时间 秒
+    logger:                                 # 日志配置
+      log_file_path: "logs/db/kf_ai_test.log" # 日志文件路径（为空时输出到控制台）
+      max_size: 20                          # 单个日志文件的最大大小（单位：MB） , 当日志文件路径不为空时生效
+      max_backups: 3                        # 保留的旧日志文件的最大数量 , 当日志文件路径不为空时生效
+      max_age: 15                           # 日志文件的最大保存天数 , 当日志文件路径不为空时生效
+      compress: false                       # 是否压缩旧日志文件 , 当日志文件路径不为空时生效
+      log_level: "warn"                     # 日志等级 (silent（静默）、error（错误）、warn（警告）、info（信息）) 
+      slow_threshold: 500                   # 慢查询阈值（单位：毫秒）

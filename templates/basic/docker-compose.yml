@@ -1,0 +1,78 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WORKDIR: ${WORKDIR:-/app} # 设置工作目录 Dockerfile文件中需要
+        APP_CONFIG: ${APP_CONFIG:-./config} # 设置应用配置文件 Dockerfile文件中需要
+    image: "${APP_NAME}:${VERSION}"
+    container_name: "${APP_NAME}"
+    ports:
+      - "${HOST_PORT:-8080}:${CONTAINER_PORT:-8080}" # 设置端口映射
+    environment: # 给容器设置环境变量
+      - MYSQL_DSN=${DB_DSN:-apps:apps@tcp(mysql:3306)/kf_ai?charset=utf8mb4&parseTime=True&loc=Local}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379} # 设置redis连接
+      - TZ=Asia/Shanghai # 设置时区
+    env_file: # 设置环境变量文件, 当前容器内的应用需要的环境变量, 这里是app应用
+      - .env.docker-compose # 设置环境变量文件
+    depends_on: # 设置依赖服务，在启动服务的时候，会先启动依赖的服务，然后启动当前服务。 依赖的服务设置了健康检查
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes: 
+      - log_data:${WORKDIR:-/app}/logs # 设置卷, 将容器生成的日志文件挂载到本地卷
+      - download_data:${WORKDIR:-/app}/downloads # 设置卷, 将容器生成的下载文件挂载到本地卷
+    networks:
+      - taurus-network
+
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-kf_ai} 
+      MYSQL_USER: ${DB_USER:-apps}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-apps}
+      TZ: Asia/Shanghai # 设置时区
+    healthcheck: # 设置健康检查，配合depends_on使用，如果依赖的服务没有启动成功，当前服务不会启动
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    env_file: # 当前容器内的应用需要的环境变量, 这里是mysql
+      - .env.docker-compose
+    volumes:
+      - db_data:/var/lib/mysql # 设置卷
+      - ./scripts/data/init_mysql:/docker-entrypoint-initdb.d # 设置卷, 初始化数据库，执行sql文件(凡是放在这个目录下的sql文件都会被执行)
+    networks:
+      - taurus-network
+
+  redis:
+    image: redis:6 
+    container_name: redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      TZ: Asia/Shanghai # 设置时区
+    networks:
+      - taurus-network
+    volumes:
+      - redis_data:/data 
+
+# 定义卷需要创建的所有卷
+volumes:
+  db_data:
+  redis_data:
+  log_data:
+  download_data:
+# 使用 bridge 网络，单机版必须使用 bridge 网络，集群版必须使用 overlay 网络
+networks:
+  taurus-network:
+    driver: bridge

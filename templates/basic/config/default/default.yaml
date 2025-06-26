@@ -1,0 +1,17 @@
+# 系统版本
+version: "${VERSION:v1.0.0}"
+app_name: "${APP_NAME:taurus}"
+app_host: "${APP_HOST:0.0.0.0}"
+app_port: ${APP_PORT:8080}
+authorization: "Bearer ${AUTHORIZATION:123456}" # 授权码
+db_enable: true # 是否启用数据库
+redis_enable: true # 是否启用redis
+cron_enable: true # 是否启用cron
+templates_enable: true # 是否启用模板
+websocket_enable: true # 是否启用websocket
+mcp_enable: true # 是否启用mcp
+consul_enable: true # 是否启用consul
+grpc_enable: true # 是否启用grpc
+tracing_enable: true # 是否启用tracing
+tcp_enable: true # 是否启用tcp
+print_enable: true # 是否打印配置信息

@@ -1,0 +1,104 @@
+consul:
+  server:
+    address: "192.168.3.240" # consul服务端地址
+    port: 8500 # consul服务端端口
+    token: "your-consul-token" # consul服务端token
+    use_tls: false # 是否使用TLS
+    tls_config:
+      address: "192.168.3.240" # consul服务端地址
+      port: 8500 # consul服务端端口
+      ca_file: "ca.crt" # 证书文件
+      cert_file: "cert.crt" # 证书文件
+      key_file: "key.crt" # 证书文件
+      insecure_skip_verify: false # 是否忽略证书验证
+  service: 
+    kind: "api-gateway"  # 服务的类型: connect-proxy, mesh-gateway, terminating-gateway, ingress-gateway, api-gateway
+    id: "" # 服务的ID, 如果不提供, 则自动生成， 唯一
+    name: "taurus-api-gateway" # 服务名称
+    tags: [taurus, api-gateway] # 服务标签. 用于对服务进行分类查找
+    address: "192.168.40.30" # 服务地址, 通常是本机IP或主机名
+    port: 9080 # 服务端口
+    namespace: "taurus" # 服务命名空间, 用于consul的命名空间
+    locality: # 服务的地理位置
+      region: "cn-east-1" # 服务所在区域，通常是较大的地理区域
+      zone: "cn-east-1-guangzhou" # 服务所在区域，通常是较小的地理区域
+    check: # 服务的健康检查配置
+      type: "ttl" # 健康检查的类型, 可选值: ttl, tcp, http, grpc, shell 切记互斥的。
+      check_id: "" # 健康检查的ID, 如果不提供, 则自动生成， 唯一
+      name: "taurus-api-gateway-check" # 健康检查的名称
+      notes: "用于检测taurus-api-gateway的健康状态" # 健康检查的备注, 描述信息
+
+      # ---------------------------shell来做健康检查---------------------------------
+      # consul服务端主动调用shell脚本，来实现健康检查，适用于应用服务和consul服务器在同一个机器上
+      # 如果应用服务和consul服务器不在同一个机器上，则需要使用consul angent来解决
+      check_shell : 
+        shell: "/bin/bash" # 健康检查的shell, 如果为空, 则使用默认的shell "/bin/bash"
+        args: ["/path/to/script.sh", "arg1", "arg2"] # 健康检查的参数  Args:    []string{"/path/to/script.sh", "arg1", "arg2"},
+        docker_container_id: "taurus-api-gateway-docker-container" # 健康检查的docker容器ID/容器名, docker部署下有效
+        # ---------------------------ttl的健康检查不需要配置interval和timeout---------------------------------
+        interval: "10s" # 健康检查的间隔时间
+        timeout: "5s" # 健康检查的超时时间
+
+      # ---------------------------http来做健康检查----------------------------------
+      # consul服务端主动调用http接口，来实现健康检查
+      check_http:
+        http: "http://192.168.40.30:9080/health" # 健康检查的HTTP地址
+        method: "GET" # 健康检查的HTTP方法
+        header: # 健康检查的HTTP头, 可以设置多个, 注意这里是个map，在 映射到config的时候，注意map的解析
+          Content-Type: "application/json"
+          Authorization: "Bearer 123456"
+        body: "{}" # 健康检查的HTTP body
+        # ---------------------------ttl的健康检查不需要配置interval和timeout---------------------------------
+        interval: "10s" # 健康检查的间隔时间
+        timeout: "5s" # 健康检查的超时时间
+    
+
+      # ---------------------------用tcp来做健康检查---------------------------------
+      # consul服务端主动调用tcp连接，来实现健康检查
+      check_tcp:
+        tcp: "192.168.40.30:9080" # 健康检查的TCP地址 "localhost:8080"
+        tcp_use_tls: true # 健康检查的TCP是否使用TLS
+        tls_server_name: "localhost" # 健康检查的TLS服务器名称, 只适用于grpc/tcp 健康检查
+        tls_skip_verify: false # 健康检查的TLS是否跳过证书验证, 只适用于grpc/tcp 健康检查
+        # ---------------------------ttl的健康检查不需要配置interval和timeout---------------------------------
+        interval: "10s" # 健康检查的间隔时间
+        timeout: "5s" # 健康检查的超时时间
+
+      # ---------------------------用grpc来做健康检查---------------------------------
+      # consul服务端主动调用grpc连接，来实现健康检查
+      check_grpc:
+        grpc: "192.168.40.30::50051" # 健康检查的gRPC地址
+        grpc_use_tls: true # 健康检查的gRPC是否使用TLS, 参考openssl在服务端生成tls证书，并在启动服务的时候配置tls的支持
+        tls_server_name: "localhost" # 健康检查的TLS服务器名称, 只适用于grpc/tcp 健康检查
+        tls_skip_verify: false # 健康检查的TLS是否跳过证书验证, 只适用于grpc/tcp 健康检查
+        # ---------------------------ttl的健康检查不需要配置interval和timeout---------------------------------
+        interval: "10s" # 健康检查的间隔时间
+        timeout: "5s" # 健康检查的超时时间
+
+      # ---------------------------用ttl来做健康检查---------------------------------
+      # 应用服务主动上报心跳给consul服务端， 由consul服务端来判断服务是否健康
+      # 健康检查的TTL时间, 需要自己实现ttl的更新， 
+      # 1. TTL 检查要求服务本身定期向 Consul服务 发送心跳信号 
+      # 2. 如果 Consul 在指定的 TTL 时间内没有收到心跳，则认为服务不健康
+      # 3. 服务需要主动调用 Consul API 来更新 TTL 状态
+      # 使用场景:
+      # 1. 当服务内部状态复杂，无法通过简单的 HTTP/TCP 检查判断健康状态
+      # 2. 服务需要自定义健康检查逻辑
+      # 3. 服务需要主动报告其健康状态
+      # 注意：
+      # 1. 建议设置为服务更新间隔的 2-3 倍
+      # 2. 建议更新频率为 TTL 时间的一半
+      # 3. 如果ttl设置了值，那么tcp, http, grpc, shell 这些健康检查的配置就没有用了
+      check_ttl: 
+        ttl: "15s" 
+
+      status: "critical" # 应用服务在启动后，初始的服务状态, 可选值: passing(正常), warning(警告), critical(危险)
+      success_before_passing: 3 # 连续3次成功才转为passing
+      failures_before_warning: 3 #  连续3次失败转为warning
+      failures_before_critical: 3 # 连续3次失败转为critical
+      deregister_critical_service_after: "1m" # 健康检查的注销时间
+
+
+# ------------------------------consul---------------------------------
+# address -> http://192.168.3.240:8500
+# ---------------------------------------------------------------------

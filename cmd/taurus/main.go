@@ -3,11 +3,19 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 )
+
+type ProjectData struct {
+	ProjectName  string
+	PackageName  string
+	TemplatePath string
+}
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
@@ -37,8 +45,18 @@ func main() {
 		return
 	}
 
-	// 创建项目结构
-	createProjectStructure(projectDir, includeExamples == "y")
+	// 准备项目数据
+	data := ProjectData{
+		ProjectName:  projectName,
+		PackageName:  projectName,
+		TemplatePath: "templates/basic",
+	}
+
+	// 复制项目模板
+	if err := copyTemplate(data, projectDir, includeExamples == "y"); err != nil {
+		fmt.Printf("复制项目模板失败: %v\n", err)
+		return
+	}
 
 	// 初始化 go.mod
 	cmd := exec.Command("go", "mod", "init", projectName)
@@ -56,226 +74,109 @@ func main() {
 		return
 	}
 
+	// 编译项目
+	cmd = exec.Command("go", "build", "-o", "bin/app", "cmd/main.go")
+	cmd.Dir = projectDir
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("编译项目失败: %v\n", err)
+		return
+	}
+
 	fmt.Printf("\n项目 %s 创建成功！\n", projectName)
 	fmt.Printf("请进入项目目录并运行：\n")
 	fmt.Printf("cd %s\n", projectDir)
-	fmt.Printf("go run cmd/main.go\n")
+	fmt.Printf("./bin/app\n")
 }
 
-func createProjectStructure(projectDir string, includeExamples bool) {
-	// 创建基本目录结构
-	dirs := []string{
-		"cmd",
-		"internal/config",
-		"internal/handler",
-		"internal/middleware",
-		"internal/model",
-		"internal/service",
-		"pkg",
-	}
+func copyTemplate(data ProjectData, destDir string, includeExamples bool) error {
+	// 获取模板根目录
+	templateRoot := filepath.Join(data.TemplatePath)
 
-	for _, dir := range dirs {
-		os.MkdirAll(filepath.Join(projectDir, dir), 0755)
-	}
+	// 遍历模板目录
+	return filepath.Walk(templateRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 
-	// 创建主程序文件
-	createMainFile(projectDir, includeExamples)
+		// 计算目标路径
+		relPath, err := filepath.Rel(templateRoot, path)
+		if err != nil {
+			return err
+		}
+		destPath := filepath.Join(destDir, relPath)
 
-	// 创建配置文件
-	createConfigFile(projectDir)
+		// 如果是目录，创建它
+		if info.IsDir() {
+			return os.MkdirAll(destPath, 0755)
+		}
 
-	// 如果需要示例代码
-	if includeExamples {
-		createExampleHandler(projectDir)
-		createExampleMiddleware(projectDir)
-	}
+		// 如果不包含示例代码，跳过示例相关文件
+		if !includeExamples {
+			// 跳过整个 example 目录
+			if strings.Contains(path, "/example/") {
+				return nil
+			}
+			// 跳过其他目录中的示例文件
+			if strings.Contains(path, "example") || strings.Contains(path, "middleware") {
+				return nil
+			}
+		}
 
-	// 创建 README.md
-	createReadme(projectDir, filepath.Base(projectDir))
+		// 创建空的日志目录
+		if strings.Contains(path, "/logs/") {
+			return os.MkdirAll(destPath, 0755)
+		}
+
+		// 处理模板文件
+		if strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
+			return processTemplate(path, destPath, data)
+		}
+
+		// 复制其他文件
+		return copyFile(path, destPath)
+	})
 }
 
-func createMainFile(projectDir string, includeExamples bool) {
-	mainContent := []string{
-		"package main",
-		"",
-		"import (",
-		"	\"log\"",
-		"",
-		"	\"github.com/stones-hub/taurus-pro-http/server\"",
+func processTemplate(srcPath, destPath string, data ProjectData) error {
+	// 读取模板内容
+	content, err := os.ReadFile(srcPath)
+	if err != nil {
+		return err
 	}
 
-	if includeExamples {
-		mainContent = append(mainContent,
-			fmt.Sprintf("	\"%s/internal/handler\"", filepath.Base(projectDir)),
-			fmt.Sprintf("	\"%s/internal/middleware\"", filepath.Base(projectDir)),
-		)
+	// 解析模板
+	tmpl, err := template.New(filepath.Base(srcPath)).Parse(string(content))
+	if err != nil {
+		return err
 	}
 
-	mainContent = append(mainContent,
-		")",
-		"",
-		"func main() {",
-		"	// 创建 HTTP 服务器实例",
-		"	srv := server.New()",
-		"",
-	)
-
-	if includeExamples {
-		mainContent = append(mainContent,
-			"	// 添加全局中间件",
-			"	srv.Use(middleware.Logger())",
-			"",
-			"	// 注册路由",
-			"	handler.NewExampleHandler().Register(srv)",
-			"",
-		)
+	// 创建目标文件
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		return err
 	}
+	defer destFile.Close()
 
-	mainContent = append(mainContent,
-		"	// 启动服务器",
-		"	if err := srv.Start(); err != nil {",
-		"		log.Fatalf(\"服务器启动失败: %v\", err)",
-		"	}",
-		"}",
-	)
-
-	content := strings.Join(mainContent, "\n")
-	os.WriteFile(filepath.Join(projectDir, "cmd", "main.go"), []byte(content), 0644)
+	// 执行模板
+	return tmpl.Execute(destFile, data)
 }
 
-func createConfigFile(projectDir string) {
-	content := strings.Join([]string{
-		"package config",
-		"",
-		"import (",
-		"	\"github.com/stones-hub/taurus-pro-http/server\"",
-		")",
-		"",
-		"// Config 应用配置结构",
-		"type Config struct {",
-		"	Server *server.Config `yaml:\"server\"`",
-		"}",
-		"",
-		"// DefaultConfig 返回默认配置",
-		"func DefaultConfig() *Config {",
-		"	return &Config{",
-		"		Server: &server.Config{",
-		"			Port: 8080,",
-		"		},",
-		"	}",
-		"}",
-	}, "\n")
+func copyFile(src, dest string) error {
+	// 打开源文件
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
 
-	os.WriteFile(filepath.Join(projectDir, "internal", "config", "config.go"), []byte(content), 0644)
-}
+	// 创建目标文件
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
 
-func createExampleHandler(projectDir string) {
-	content := strings.Join([]string{
-		"package handler",
-		"",
-		"import (",
-		"	\"github.com/stones-hub/taurus-pro-http/server\"",
-		")",
-		"",
-		"// ExampleHandler 示例处理器",
-		"type ExampleHandler struct{}",
-		"",
-		"// NewExampleHandler 创建示例处理器实例",
-		"func NewExampleHandler() *ExampleHandler {",
-		"	return &ExampleHandler{}",
-		"}",
-		"",
-		"// Register 注册路由",
-		"func (h *ExampleHandler) Register(srv *server.Server) {",
-		"	srv.GET(\"/example\", h.HandleExample)",
-		"}",
-		"",
-		"// HandleExample 处理示例请求",
-		"func (h *ExampleHandler) HandleExample(ctx *server.Context) {",
-		"	ctx.JSON(200, map[string]string{",
-		"		\"message\": \"这是一个示例响应\",",
-		"	})",
-		"}",
-	}, "\n")
-
-	os.WriteFile(filepath.Join(projectDir, "internal", "handler", "example.go"), []byte(content), 0644)
-}
-
-func createExampleMiddleware(projectDir string) {
-	content := strings.Join([]string{
-		"package middleware",
-		"",
-		"import (",
-		"	\"log\"",
-		"	\"time\"",
-		"",
-		"	\"github.com/stones-hub/taurus-pro-http/server\"",
-		")",
-		"",
-		"// Logger 创建一个日志中间件",
-		"func Logger() server.HandlerFunc {",
-		"	return func(ctx *server.Context) {",
-		"		start := time.Now()",
-		"",
-		"		// 处理请求",
-		"		ctx.Next()",
-		"",
-		"		// 记录请求信息",
-		"		log.Printf(\"[%s] %s %s %v\",",
-		"			ctx.Request.Method,",
-		"			ctx.Request.URL.Path,",
-		"			ctx.Request.RemoteAddr,",
-		"			time.Since(start),",
-		"		)",
-		"	}",
-		"}",
-	}, "\n")
-
-	os.WriteFile(filepath.Join(projectDir, "internal", "middleware", "logger.go"), []byte(content), 0644)
-}
-
-func createReadme(projectDir, projectName string) {
-	content := strings.Join([]string{
-		fmt.Sprintf("# %s", projectName),
-		"",
-		"这是一个基于 taurus-pro-http 的 Web 服务项目。",
-		"",
-		"## 项目结构",
-		"",
-		"```",
-		".  ",
-		"├── cmd                     # 命令行工具",
-		"│   └── main.go            # 主程序入口",
-		"├── internal               # 内部代码",
-		"│   ├── config            # 配置",
-		"│   ├── handler           # HTTP 处理器",
-		"│   ├── middleware        # 中间件",
-		"│   ├── model            # 数据模型",
-		"│   └── service          # 业务逻辑层",
-		"└── pkg                   # 可重用的包",
-		"```",
-		"",
-		"## 快速开始",
-		"",
-		"运行服务器：",
-		"",
-		"```bash",
-		"go run cmd/main.go",
-		"```",
-		"",
-		"## 配置说明",
-		"",
-		"配置文件位于 `internal/config` 目录下，支持以下配置：",
-		"",
-		"- HTTP 服务器配置",
-		"- 数据库配置",
-		"- 日志配置",
-		"- 中间件配置",
-		"",
-		"## 许可证",
-		"",
-		"Apache-2.0 license",
-	}, "\n")
-
-	os.WriteFile(filepath.Join(projectDir, "README.md"), []byte(content), 0644)
+	// 复制内容
+	_, err = io.Copy(destFile, srcFile)
+	return err
 }
