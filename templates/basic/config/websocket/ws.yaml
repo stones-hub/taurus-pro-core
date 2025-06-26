@@ -1,3 +1,0 @@
-websocket:
-  handler: demo # websocket handler配置
-  path: /ws # websocket 路径

@@ -1,0 +1,4 @@
+websocket:
+  enable: true # 是否启用websocket
+  handler: demo # websocket handler配置
+  path: /ws # websocket 路径

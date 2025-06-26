@@ -1,182 +1,173 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/spf13/cobra"
+	"github.com/stones-hub/taurus-pro-core/pkg/generator"
 )
 
-type ProjectData struct {
-	ProjectName  string
-	PackageName  string
-	TemplatePath string
-}
+var (
+	projectName string
+	projectPath string
+)
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
-
-	// 1. 获取项目名称
-	fmt.Print("请输入项目名称: ")
-	projectName, _ := reader.ReadString('\n')
-	projectName = strings.TrimSpace(projectName)
-
-	// 2. 获取项目路径
-	fmt.Print("请输入项目路径 (默认为当前目录): ")
-	projectPath, _ := reader.ReadString('\n')
-	projectPath = strings.TrimSpace(projectPath)
-	if projectPath == "" {
-		projectPath = "."
+	var rootCmd = &cobra.Command{
+		Use:   "taurus",
+		Short: "Taurus Pro CLI tool",
+		Long:  `Taurus Pro is a CLI tool for creating and managing Go microservice projects`,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
 	}
 
-	// 3. 是否包含示例代码
-	fmt.Print("是否需要包含示例代码? (y/n): ")
-	includeExamples, _ := reader.ReadString('\n')
-	includeExamples = strings.TrimSpace(strings.ToLower(includeExamples))
-
-	// 创建项目目录
-	projectDir := filepath.Join(projectPath, projectName)
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
-		fmt.Printf("创建项目目录失败: %v\n", err)
-		return
+	var createCmd = &cobra.Command{
+		Use:   "create [project-name]",
+		Short: "Create a new Taurus Pro project",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectName = args[0]
+			return runCreate()
+		},
 	}
 
-	// 准备项目数据
-	data := ProjectData{
-		ProjectName:  projectName,
-		PackageName:  projectName,
-		TemplatePath: "templates/basic",
-	}
+	rootCmd.AddCommand(createCmd)
 
-	// 复制项目模板
-	if err := copyTemplate(data, projectDir, includeExamples == "y"); err != nil {
-		fmt.Printf("复制项目模板失败: %v\n", err)
-		return
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
-
-	// 初始化 go.mod
-	cmd := exec.Command("go", "mod", "init", projectName)
-	cmd.Dir = projectDir
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("初始化 go.mod 失败: %v\n", err)
-		return
-	}
-
-	// 添加依赖
-	cmd = exec.Command("go", "get", "github.com/stones-hub/taurus-pro-http@v0.0.1")
-	cmd.Dir = projectDir
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("添加依赖失败: %v\n", err)
-		return
-	}
-
-	// 编译项目
-	cmd = exec.Command("go", "build", "-o", "bin/app", "cmd/main.go")
-	cmd.Dir = projectDir
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("编译项目失败: %v\n", err)
-		return
-	}
-
-	fmt.Printf("\n项目 %s 创建成功！\n", projectName)
-	fmt.Printf("请进入项目目录并运行：\n")
-	fmt.Printf("cd %s\n", projectDir)
-	fmt.Printf("./bin/app\n")
 }
 
-func copyTemplate(data ProjectData, destDir string, includeExamples bool) error {
-	// 获取模板根目录
-	templateRoot := filepath.Join(data.TemplatePath)
+func runCreate() error {
+	// 获取可选组件
+	optionalComponents := generator.GetOptionalComponents()
+	componentOptions := make([]string, 0, len(optionalComponents))
+	for _, comp := range optionalComponents {
+		componentOptions = append(componentOptions, fmt.Sprintf("%s (%s)", comp.Description, comp.Package))
+	}
 
-	// 遍历模板目录
-	return filepath.Walk(templateRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	// 获取必需组件
+	requiredComponents := generator.GetRequiredComponents()
+	var requiredComponentNames []string
+	for _, comp := range requiredComponents {
+		requiredComponentNames = append(requiredComponentNames, comp.Name)
+	}
 
-		// 计算目标路径
-		relPath, err := filepath.Rel(templateRoot, path)
-		if err != nil {
-			return err
-		}
-		destPath := filepath.Join(destDir, relPath)
-
-		// 如果是目录，创建它
-		if info.IsDir() {
-			return os.MkdirAll(destPath, 0755)
-		}
-
-		// 如果不包含示例代码，跳过示例相关文件
-		if !includeExamples {
-			// 跳过整个 example 目录
-			if strings.Contains(path, "/example/") {
+	// 定义问题
+	questions := []*survey.Question{
+		{
+			Name: "projectPath",
+			Prompt: &survey.Input{
+				Message: "请输入项目路径:",
+				Default: filepath.Join(".", projectName),
+				Help:    "项目将被创建在这个目录下",
+			},
+			Validate: func(val interface{}) error {
+				str, ok := val.(string)
+				if !ok {
+					return fmt.Errorf("输入的路径无效")
+				}
+				if str == "" {
+					return fmt.Errorf("路径不能为空")
+				}
 				return nil
+			},
+		},
+	}
+
+	// 只有在有可选组件的情况下才添加组件选择问题
+	if len(componentOptions) > 0 {
+		questions = append(questions, &survey.Question{
+			Name: "components",
+			Prompt: &survey.MultiSelect{
+				Message: "选择要包含的组件:",
+				Options: componentOptions,
+				Help:    "使用空格键选择/取消选择组件，按回车确认",
+			},
+		})
+	}
+
+	answers := struct {
+		ProjectPath string   `survey:"projectPath"`
+		Components  []string `survey:"components"`
+	}{}
+
+	// 执行问题
+	if err := survey.Ask(questions, &answers); err != nil {
+		return fmt.Errorf("问卷调查失败: %v", err)
+	}
+
+	// 确保项目路径包含项目名称
+	projectPath = answers.ProjectPath
+	// 如果输入的路径不是以项目名结尾，则将项目名添加到路径中
+	if !strings.HasSuffix(projectPath, projectName) {
+		projectPath = filepath.Join(projectPath, projectName)
+	}
+
+	// 将选中的组件转换为组件名称
+	var selectedComponents []string
+	for _, comp := range answers.Components {
+		// 从选项字符串中提取组件包名
+		packageStart := strings.Index(comp, "(") + 1
+		packageEnd := strings.Index(comp, ")")
+		if packageStart > 0 && packageEnd > packageStart {
+			packageName := comp[packageStart:packageEnd]
+			// 查找对应的组件名称
+			for _, c := range optionalComponents {
+				if c.Package == packageName {
+					selectedComponents = append(selectedComponents, c.Name)
+					break
+				}
 			}
-			// 跳过其他目录中的示例文件
-			if strings.Contains(path, "example") || strings.Contains(path, "middleware") {
-				return nil
+		}
+	}
+
+	// 添加必需组件
+	selectedComponents = append(selectedComponents, requiredComponentNames...)
+
+	// 创建项目生成器
+	gen := generator.NewProjectGenerator(projectPath, selectedComponents)
+
+	// 生成项目
+	if err := gen.Generate(); err != nil {
+		return fmt.Errorf("生成项目失败: %v", err)
+	}
+
+	fmt.Printf("\n项目已成功创建在: %s\n", projectPath)
+
+	// 显示已包含的组件
+	fmt.Println("\n已包含的组件:")
+	fmt.Println("必需组件:")
+	for _, name := range requiredComponentNames {
+		if comp, exists := generator.GetComponentByName(name); exists {
+			fmt.Printf("- %s (%s)\n", comp.Description, comp.Package)
+		}
+	}
+
+	if len(selectedComponents) > len(requiredComponentNames) {
+		fmt.Println("\n可选组件:")
+		for _, name := range selectedComponents {
+			// 跳过必需组件
+			isRequired := false
+			for _, req := range requiredComponentNames {
+				if req == name {
+					isRequired = true
+					break
+				}
+			}
+			if !isRequired {
+				if comp, exists := generator.GetComponentByName(name); exists {
+					fmt.Printf("- %s (%s)\n", comp.Description, comp.Package)
+				}
 			}
 		}
-
-		// 创建空的日志目录
-		if strings.Contains(path, "/logs/") {
-			return os.MkdirAll(destPath, 0755)
-		}
-
-		// 处理模板文件
-		if strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
-			return processTemplate(path, destPath, data)
-		}
-
-		// 复制其他文件
-		return copyFile(path, destPath)
-	})
-}
-
-func processTemplate(srcPath, destPath string, data ProjectData) error {
-	// 读取模板内容
-	content, err := os.ReadFile(srcPath)
-	if err != nil {
-		return err
 	}
 
-	// 解析模板
-	tmpl, err := template.New(filepath.Base(srcPath)).Parse(string(content))
-	if err != nil {
-		return err
-	}
-
-	// 创建目标文件
-	destFile, err := os.Create(destPath)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	// 执行模板
-	return tmpl.Execute(destFile, data)
-}
-
-func copyFile(src, dest string) error {
-	// 打开源文件
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	// 创建目标文件
-	destFile, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	// 复制内容
-	_, err = io.Copy(destFile, srcFile)
-	return err
+	return nil
 }

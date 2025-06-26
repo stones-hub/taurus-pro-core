@@ -1,0 +1,7 @@
+server:
+  address: "${SERVER_ADDRESS:0.0.0.0}"
+  port: ${SERVER_PORT:8080}
+  read_timeout: 60
+  write_timeout: 60
+  idle_timeout: 60
+  authorization: "Bearer ${AUTHORIZATION:123456}" # 授权码

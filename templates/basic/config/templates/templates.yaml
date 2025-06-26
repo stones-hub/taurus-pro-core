@@ -1,5 +1,0 @@
-templates:
-  - name: "default"
-    path: "./templates/default"
-  - name: "en"
-    path: "./templates/en"

@@ -1,0 +1,40 @@
+# 日志配置
+loggers:
+  - name: default
+    # 日志前缀 , 当 outputType 为 console 时可忽略此配置
+    perfix: ""
+    # 日志等级，可取值： none(无效) error（错误）、warn（警告）、info（信息）、debug（调试）
+    log_level: info
+    # 输出类型，可取值：console（控制台输出）、file（文件输出）
+    output_type: file
+    # 日志文件路径，支持相对路径和绝对路径，当 outputType 为 console 时可忽略此配置
+    log_file_path: logs/app.log
+    # 单个日志文件的最大大小（单位：MB） 当 outputType 为 console 时可忽略此配置
+    max_size: 10
+    # 保留的旧日志文件的最大数量 当 outputType 为 console 时可忽略此配置
+    max_backups: 5
+    # 日志文件的最大保存天数 当 outputType 为 console 时可忽略此配置
+    max_age: 30
+    # 是否压缩旧日志文件 当 outputType 为 console 时可忽略此配置
+    compress: true
+    # 自定义日志格式化函数的名称 当 outputType 为 console 时可忽略此配置
+    formatter: default
+  - name: trace
+    # 日志前缀 , 当 outputType 为 console 时可忽略此配置
+    perfix: ""
+    # 日志等级，可取值： none(无效) error（错误）、warn（警告）、info（信息）、debug（调试）
+    log_level: info
+    # 输出类型，可取值：console（控制台输出）、file（文件输出）
+    output_type: file
+    # 日志文件路径，支持相对路径和绝对路径，当 outputType 为 console 时可忽略此配置
+    log_file_path: logs/trace.log
+    # 单个日志文件的最大大小（单位：MB） 当 outputType 为 console 时可忽略此配置
+    max_size: 10
+    # 保留的旧日志文件的最大数量 当 outputType 为 console 时可忽略此配置
+    max_backups: 5
+    # 日志文件的最大保存天数 当 outputType 为 console 时可忽略此配置
+    max_age: 30
+    # 是否压缩旧日志文件 当 outputType 为 console 时可忽略此配置
+    compress: true
+    # 自定义日志格式化函数的名称 当 outputType 为 console 时可忽略此配置
+    formatter: trace_simple

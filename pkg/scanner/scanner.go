@@ -1,0 +1,221 @@
+package scanner
+
+import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// ProviderSetInfo 存储 provider set 的位置信息
+type ProviderSetInfo struct {
+	Name       string // 变量名
+	PkgPath    string // 包路径
+	StructType string // 关联的结构体类型名称，如果有的话
+}
+
+// Scanner 用于扫描Go文件中的ProviderSet
+type Scanner struct {
+	// 存储找到的所有ProviderSet信息
+	providerSets []ProviderSetInfo
+	// 项目根目录
+	projectRoot string
+	// 模块名称
+	moduleName string
+}
+
+// NewScanner 创建新的扫描器
+func NewScanner(projectRoot, moduleName string) *Scanner {
+	return &Scanner{
+		providerSets: make([]ProviderSetInfo, 0),
+		projectRoot:  projectRoot,
+		moduleName:   moduleName,
+	}
+}
+
+// ScanDir 扫描指定目录下的所有Go文件
+func (s *Scanner) ScanDir(dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 跳过目录
+		if info.IsDir() {
+			return nil
+		}
+
+		// 只处理.go文件，跳过测试文件和生成的wire文件
+		if !strings.HasSuffix(path, ".go") ||
+			strings.HasSuffix(path, "_test.go") ||
+			strings.HasSuffix(path, "wire_gen.go") {
+			return nil
+		}
+
+		return s.scanFile(path)
+	})
+}
+
+// scanFile 扫描单个Go文件
+func (s *Scanner) scanFile(filename string) error {
+	fmt.Printf("Scanning file: %s\n", filename)
+
+	// 读取文件内容
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("failed to read file %s: %v", filename, err)
+	}
+
+	// 解析文件
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filename, content, parser.ParseComments)
+	if err != nil {
+		return fmt.Errorf("failed to parse file %s: %v", filename, err)
+	}
+
+	// 获取包名
+	pkgPath := s.getPackagePath(filename)
+	fmt.Printf("Package path: %s\n", pkgPath)
+
+	// 存储文件中的结构体定义
+	structs := make(map[string]string)
+
+	// 首先扫描所有的结构体定义
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			if _, ok := typeSpec.Type.(*ast.StructType); ok {
+				structs[typeSpec.Name.Name] = typeSpec.Name.Name
+				fmt.Printf("Found struct: %s\n", typeSpec.Name.Name)
+			}
+		}
+	}
+
+	// 然后扫描所有的 provider set 定义
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.VAR {
+			continue
+		}
+
+		fmt.Printf("Found variable declaration in %s\n", filename)
+
+		// 遍历所有变量声明
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+
+			// 检查变量类型是否为wire.ProviderSet
+			for _, name := range valueSpec.Names {
+				fmt.Printf("Checking variable: %s\n", name.Name)
+				if len(valueSpec.Values) > 0 {
+					// 如果类型是从初始化表达式推断的
+					if callExpr, ok := valueSpec.Values[0].(*ast.CallExpr); ok {
+						if sel, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+							fmt.Printf("Call expression: %s.%s\n", sel.X, sel.Sel.Name)
+							// 检查是否是 wire.NewSet
+							if ident, ok := sel.X.(*ast.Ident); ok {
+								if ident.Name == "wire" && sel.Sel.Name == "NewSet" {
+									// 尝试从变量名推断结构体类型
+									// 例如：UserServiceSet -> UserService
+									structType := strings.TrimSuffix(name.Name, "Set")
+									if _, exists := structs[structType]; exists {
+										fmt.Printf("Found provider set: %s for struct: %s in package %s\n",
+											name.Name, structType, pkgPath)
+										s.providerSets = append(s.providerSets, ProviderSetInfo{
+											Name:       name.Name,
+											PkgPath:    pkgPath,
+											StructType: structType,
+										})
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// getPackagePath 获取Go文件的包路径
+func (s *Scanner) getPackagePath(filename string) string {
+	// 获取绝对路径
+	absPath, err := filepath.Abs(filename)
+	if err != nil {
+		fmt.Printf("Error getting absolute path for %s: %v\n", filename, err)
+		return ""
+	}
+
+	// 获取相对于项目根目录的路径
+	rel, err := filepath.Rel(s.projectRoot, absPath)
+	if err != nil {
+		fmt.Printf("Error getting relative path from %s to %s: %v\n", s.projectRoot, absPath, err)
+		return ""
+	}
+
+	// 将路径分隔符转换为包路径分隔符
+	pkgPath := strings.ReplaceAll(filepath.Dir(rel), string(filepath.Separator), "/")
+
+	// 构造完整的包路径
+	fullPath := pkgPath
+	fmt.Printf("Converting %s to package path: %s\n", filename, fullPath)
+	return fullPath
+}
+
+// GetProviderSets 获取所有找到的ProviderSet信息
+func (s *Scanner) GetProviderSets() []ProviderSetInfo {
+	return s.providerSets
+}
+
+// GenerateWireImports 生成 wire.go 需要的导入语句
+func (s *Scanner) GenerateWireImports() []string {
+	imports := make(map[string]struct{})
+	for _, info := range s.providerSets {
+		imports[info.PkgPath] = struct{}{}
+	}
+
+	result := make([]string, 0, len(imports))
+	for imp := range imports {
+		result = append(result, imp)
+	}
+	return result
+}
+
+// GenerateWireProviderSets 生成 wire.go 需要的 provider sets
+func (s *Scanner) GenerateWireProviderSets() []string {
+	sets := make([]string, 0, len(s.providerSets))
+	for _, info := range s.providerSets {
+		pkgName := filepath.Base(info.PkgPath)
+		sets = append(sets, fmt.Sprintf("%s.%s", pkgName, info.Name))
+	}
+	return sets
+}
+
+// GenerateApplicationFields 生成 Application 结构体的字段
+func (s *Scanner) GenerateApplicationFields() []string {
+	fields := make([]string, 0, len(s.providerSets))
+	for _, info := range s.providerSets {
+		if info.StructType != "" {
+			pkgName := filepath.Base(info.PkgPath)
+			fields = append(fields, fmt.Sprintf("\t%s *%s.%s", info.StructType, pkgName, info.StructType))
+		}
+	}
+	return fields
+}
