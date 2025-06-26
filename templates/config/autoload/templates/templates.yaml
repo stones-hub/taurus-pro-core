@@ -1,6 +1,6 @@
 templates:
-  enable: true # 是否启用模板
-  - name: "default"
-    path: "./templates/default"
-  - name: "en"
-    path: "./templates/en"
+  list:
+    - name: "default"
+      path: "./templates/default"
+    - name: "en"
+      path: "./templates/en"

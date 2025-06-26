@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Component 组件定义
+// Component 表示一个组件
 type Component struct {
 	Name         string   // 组件别名，如 "config"
 	Package      string   // 组件包名，如 "github.com/stones-hub/taurus-pro-config"
@@ -13,6 +13,7 @@ type Component struct {
 	Description  string   // 组件描述
 	Required     bool     // 是否为必需组件
 	Dependencies []string // 依赖的其他组件别名
+	IsCustom     bool     // 是否为自定义组件
 }
 
 // 所有可用的组件定义
@@ -23,6 +24,7 @@ var (
 		Package:     "github.com/stones-hub/taurus-pro-config",
 		Version:     "v0.0.1",
 		Description: "配置管理组件",
+		IsCustom:    true,
 		Required:    true,
 	}
 
@@ -31,6 +33,7 @@ var (
 		Package:      "github.com/stones-hub/taurus-pro-http",
 		Version:      "v0.0.1",
 		Description:  "HTTP服务器组件",
+		IsCustom:     true,
 		Required:     true,
 		Dependencies: []string{"config"},
 	}
@@ -40,6 +43,7 @@ var (
 		Package:     "github.com/google/wire",
 		Version:     "v0.5.0",
 		Description: "依赖注入工具",
+		IsCustom:    false,
 		Required:    true,
 	}
 
@@ -48,6 +52,7 @@ var (
 		Package:     "github.com/go-redis/redis/v8",
 		Version:     "v8.11.5",
 		Description: "Redis客户端组件",
+		IsCustom:    false,
 		Required:    false,
 	}
 
