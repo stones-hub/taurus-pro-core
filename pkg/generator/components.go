@@ -22,7 +22,7 @@ var (
 	configComponent = Component{
 		Name:        "config",
 		Package:     "github.com/stones-hub/taurus-pro-config",
-		Version:     "v0.0.1",
+		Version:     "v0.0.2",
 		Description: "配置管理组件",
 		IsCustom:    true,
 		Required:    true,
@@ -31,7 +31,7 @@ var (
 	httpComponent = Component{
 		Name:         "http",
 		Package:      "github.com/stones-hub/taurus-pro-http",
-		Version:      "v0.0.1",
+		Version:      "v0.0.2",
 		Description:  "HTTP服务器组件",
 		IsCustom:     true,
 		Required:     true,
