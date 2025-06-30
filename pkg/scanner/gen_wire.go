@@ -16,23 +16,44 @@ const wireTemplate = `//go:build wireinject
 package app
 
 import (
+	"fmt"
 	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-config/pkg/config"
 {{- range .Imports}}
 	"{{$.ModuleName}}/{{.}}"
 {{- end}}
 )
 
+// ConfigOptions 配置选项
+type ConfigOptions struct {
+	ConfigPath string
+	Env        string
+	PrintEnable bool
+}
+
 // Taurus 应用程序结构
 type Taurus struct {
+	Config *config.Config
 {{- range .Fields}}
 	{{.}}
 {{- end}}
 }
 
+// ProvideConfigComponent 注入配置模块
+func ProvideConfigComponent(opts *ConfigOptions) (*config.Config, error) {
+	configComponent := config.New(config.WithPrintEnable(opts.PrintEnable))
+	if err := configComponent.Initialize(opts.ConfigPath, opts.Env); err != nil {
+		return nil, fmt.Errorf("failed to initialize config: %v", err)
+	}
+	return configComponent, nil
+}
+
 
 // BuildTaurus 构建应用程序
-func BuildTaurus() (*Taurus, func(), error) {
+func BuildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
 	wire.Build(
+		// 配置组件
+		ProvideConfigComponent,
 		// 应用结构
 		wire.Struct(new(Taurus), "*"),
 		// 扫描到的 provider sets

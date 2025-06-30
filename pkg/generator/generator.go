@@ -18,10 +18,9 @@ type Generator interface {
 
 // ProjectGenerator 项目生成器
 type ProjectGenerator struct {
-	ProjectPath     string
-	Components      []string
-	componentConfig []byte
-	TemplateDir     string
+	ProjectPath string
+	Components  []string
+	TemplateDir string
 }
 
 // getSystemGoVersion 获取系统的 Go 版本
@@ -63,11 +62,6 @@ func NewProjectGenerator(projectPath string, components []string) *ProjectGenera
 		Components:  components,
 		TemplateDir: templateDir,
 	}
-}
-
-// SetComponentConfig 设置组件配置
-func (g *ProjectGenerator) SetComponentConfig(config []byte) {
-	g.componentConfig = config
 }
 
 // Generate 生成项目结构
@@ -139,18 +133,6 @@ func (g *ProjectGenerator) Generate() error {
 	appPath := filepath.Join(g.ProjectPath, "app")
 	if err := g.generateWire(appPath); err != nil {
 		return fmt.Errorf("生成 wire.go 失败: %v", err)
-	}
-
-	// 创建配置目录
-	configDir := filepath.Join(g.ProjectPath, "config", "autoload", "components")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("创建配置目录失败: %v", err)
-	}
-
-	// 保存组件配置文件
-	configFile := filepath.Join(configDir, "components.yaml")
-	if err := os.WriteFile(configFile, g.componentConfig, 0644); err != nil {
-		return fmt.Errorf("保存组件配置文件失败: %v", err)
 	}
 
 	fmt.Println("成功生成项目文件")

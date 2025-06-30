@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/stones-hub/taurus-pro-config/pkg/config"
 	"github.com/stones-hub/taurus-pro-http/pkg/server"
 )
 
@@ -141,46 +140,13 @@ func gracefulCleanup(ctx context.Context) {
 func buildComponents(configPath, env string) {
 	// build Taurus
 	var cleanup func()
-	T, cleanup, Err = BuildTaurus()
+	T, cleanup, Err = BuildTaurus(&ConfigOptions{
+		ConfigPath:  configPath,
+		Env:         env,
+		PrintEnable: true,
+	})
 	if Err != nil {
 		log.Fatal(Err)
 	}
 	Cleanup = append(Cleanup, cleanup)
-
-	// 1. build config
-	configComponent := config.New(config.WithPrintEnable(true))
-	if err := configComponent.Initialize(configPath, env); err != nil {
-		log.Fatalf("Failed to initialize config: %v", err)
-	}
-	T.Component.Register("config", configComponent)
-
-	// 2. build http
-	httpComponent := server.NewServer(server.WithAddr(configComponent.GetString("http.address")+":"+configComponent.GetString("http.port")),
-		server.WithReadTimeout(time.Duration(configComponent.GetInt("http.read_timeout"))*time.Second),
-		server.WithWriteTimeout(time.Duration(configComponent.GetInt("http.write_timeout"))*time.Second),
-		server.WithIdleTimeout(time.Duration(configComponent.GetInt("http.idle_timeout"))*time.Second))
-	T.Component.Register("http", httpComponent)
-	Cleanup = append(Cleanup, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(configComponent.GetInt("http.shutdown_timeout"))*time.Second)
-		defer cancel()
-		httpComponent.Shutdown(ctx)
-	})
-}
-
-// GetConfig returns the config component
-func GetConfig() *config.Config {
-	configComponent, ok := T.Component.Get("config")
-	if !ok {
-		log.Fatal("config component not found")
-	}
-	return configComponent.(*config.Config)
-}
-
-// GetHttpServer returns the http server component
-func GetHttpServer() *server.Server {
-	httpComponent, ok := T.Component.Get("http")
-	if !ok {
-		log.Fatal("http component not found")
-	}
-	return httpComponent.(*server.Server)
 }

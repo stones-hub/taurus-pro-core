@@ -9,7 +9,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/stones-hub/taurus-pro-core/pkg/generator"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -43,45 +42,6 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-// generateComponentConfig 生成组件配置信息
-func generateComponentConfig(selectedComponents []string) ([]byte, error) {
-	// 创建组件配置映射
-	components := make(map[string]map[string]interface{})
-
-	// 遍历所有选中的组件
-	for _, name := range selectedComponents {
-		comp, exists := generator.GetComponentByName(name)
-		if !exists {
-			continue
-		}
-
-		// 构建组件配置
-		componentConfig := map[string]interface{}{
-			"package":     comp.Package,
-			"version":     comp.Version,
-			"description": comp.Description,
-			"enabled":     true,
-			"is_custom":   comp.IsCustom,
-		}
-
-		// 如果有依赖，添加依赖信息
-		if len(comp.Dependencies) > 0 {
-			componentConfig["dependencies"] = comp.Dependencies
-		}
-
-		// 将组件配置添加到映射中
-		components[name] = componentConfig
-	}
-
-	// 创建最终的配置结构
-	config := map[string]interface{}{
-		"components": components,
-	}
-
-	// 转换为YAML格式
-	return yaml.Marshal(config)
 }
 
 func runCreate() error {
@@ -171,17 +131,8 @@ func runCreate() error {
 	// 添加必需组件
 	selectedComponents = append(selectedComponents, requiredComponentNames...)
 
-	// 生成组件配置
-	componentConfig, err := generateComponentConfig(selectedComponents)
-	if err != nil {
-		return fmt.Errorf("生成组件配置失败: %v", err)
-	}
-
 	// 创建项目生成器
 	gen := generator.NewProjectGenerator(projectPath, selectedComponents)
-
-	// 设置组件配置
-	gen.SetComponentConfig(componentConfig)
 
 	// 生成项目
 	if err := gen.Generate(); err != nil {
