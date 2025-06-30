@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -69,51 +68,6 @@ func NewProjectGenerator(projectPath string, components []string) *ProjectGenera
 // SetComponentConfig 设置组件配置
 func (g *ProjectGenerator) SetComponentConfig(config []byte) {
 	g.componentConfig = config
-}
-
-// generateWireGen 根据选择的组件生成wire_gen.go
-func (g *ProjectGenerator) generateWireGen() error {
-	// 读取wire.go模板
-	wireFile := filepath.Join(g.ProjectPath, "app", "wire.go")
-	content, err := os.ReadFile(wireFile)
-	if err != nil {
-		return fmt.Errorf("读取wire.go失败: %v", err)
-	}
-
-	// 准备组件标记
-	componentFlags := make(map[string]bool)
-	for _, comp := range g.Components {
-		switch comp {
-		case "grpc":
-			componentFlags["UseGRPC"] = true
-		case "redis":
-			componentFlags["UseRedis"] = true
-		case "db":
-			componentFlags["UseDB"] = true
-			// ... 添加其他组件
-		}
-	}
-
-	// 处理模板
-	template := string(content)
-	for flag, enabled := range componentFlags {
-		if enabled {
-			// 启用组件
-			template = strings.ReplaceAll(
-				template,
-				fmt.Sprintf("// {{if .%s}}\n// ", flag),
-				fmt.Sprintf("// {{if .%s}}\n", flag),
-			)
-		} else {
-			// 删除未选择的组件
-			pattern := fmt.Sprintf(`// {{if .%s}}.*?// {{end}}`, flag)
-			re := regexp.MustCompile(pattern)
-			template = re.ReplaceAllString(template, "")
-		}
-	}
-
-	// 写入生成的文件
-	return os.WriteFile(wireFile, []byte(template), 0644)
 }
 
 // Generate 生成项目结构
@@ -213,6 +167,13 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 	// 扫描并生成 wire.go
 	if err := scanner.GenerateWire(appPath); err != nil {
 		return fmt.Errorf("生成 wire.go 失败: %v", err)
+	}
+
+	// 执行 go mod tidy
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = g.ProjectPath
+	if output, err := tidyCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("执行 go mod tidy 失败: %v\n输出: %s", err, output)
 	}
 
 	// 执行 wire 命令生成实现
