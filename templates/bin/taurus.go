@@ -1,12 +1,18 @@
 package main
 
+import (
+	"net/http"
+
+	"{{.ProjectName}}/app"
+
+	"github.com/stones-hub/taurus-pro-http/pkg/router"
+)
+
 func main() {
-	/*
-		httpServer := app.GetHttpServer()
-		httpServer.AddRouter(router.Router{
-			Path:    "/home",
-			Handler: http.HandlerFunc(app.T.IndexController.Home),
-		})
-		app.StartAndWait(httpServer)
-	*/
+
+	app.T.Http.AddRouter(router.Router{
+		Path:    "/home",
+		Handler: http.HandlerFunc(app.T.IndexController.Home),
+	})
+	app.StartAndWait(app.T.Http)
 }

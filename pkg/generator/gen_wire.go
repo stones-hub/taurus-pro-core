@@ -1,4 +1,4 @@
-package scanner
+package generator
 
 import (
 	"fmt"
@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
+	"github.com/stones-hub/taurus-pro-core/pkg/scanner"
 )
 
 // wire.go 模板
@@ -17,8 +20,12 @@ package app
 
 import (
 	"fmt"
+	"time"
 	"github.com/google/wire"
 	"github.com/stones-hub/taurus-pro-config/pkg/config"
+{{- range .ComponentImports}}
+	"{{.Path}}"
+{{- end}}
 {{- range .Imports}}
 	"{{$.ModuleName}}/{{.}}"
 {{- end}}
@@ -26,14 +33,17 @@ import (
 
 // ConfigOptions 配置选项
 type ConfigOptions struct {
-	ConfigPath string
-	Env        string
-	PrintEnable bool
+	ConfigPath   string
+	Env          string
+	PrintEnable  bool
 }
 
 // Taurus 应用程序结构
 type Taurus struct {
 	Config *config.Config
+{{- range .ComponentFields}}
+	{{.Name}} {{.Type}}
+{{- end}}
 {{- range .Fields}}
 	{{.}}
 {{- end}}
@@ -48,12 +58,22 @@ func ProvideConfigComponent(opts *ConfigOptions) (*config.Config, error) {
 	return configComponent, nil
 }
 
+{{- range .ComponentProviders}}
+{{.Provider}}
+
+{{- end}}
 
 // BuildTaurus 构建应用程序
 func BuildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
 	wire.Build(
 		// 配置组件
 		ProvideConfigComponent,
+
+		// 组件提供者
+{{- range .ComponentProviders}}
+		{{.ProviderName}},
+{{- end}}
+
 		// 应用结构
 		wire.Struct(new(Taurus), "*"),
 		// 扫描到的 provider sets
@@ -65,7 +85,7 @@ func BuildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
 	return new(Taurus), nil, nil
 }`
 
-func GenerateWire(scannerPath string) error {
+func GenerateWire(scannerPath string, components []types.Component) error {
 	// 获取项目根目录（app 目录的父目录）
 	projectRoot := filepath.Dir(scannerPath)
 
@@ -76,7 +96,7 @@ func GenerateWire(scannerPath string) error {
 	}
 
 	// 1. 创建扫描器
-	scanner := NewScanner(projectRoot, moduleName)
+	scanner := scanner.NewScanner(projectRoot, moduleName)
 
 	// 2. 扫描 app 目录下的所有 provider sets
 	if err := scanner.ScanDir(scannerPath); err != nil {
@@ -90,17 +110,80 @@ func GenerateWire(scannerPath string) error {
 		log.Printf("  - %s.%s (%s)", filepath.Base(set.PkgPath), set.Name, set.StructType)
 	}
 
-	// 4. 生成 wire.go 文件
+	// 4. 处理组件数据
+	var componentData struct {
+		ComponentImports []struct {
+			Path string
+		}
+		ComponentFields []struct {
+			Name string
+			Type string
+		}
+		ComponentProviders []struct {
+			Provider     string
+			ProviderName string
+		}
+	}
+
+	// 处理每个组件
+	for _, comp := range components {
+		if comp.IsCustom && comp.Wire != nil {
+			// 添加导入
+			componentData.ComponentImports = append(componentData.ComponentImports, struct {
+				Path string
+			}{
+				Path: comp.Wire.RequirePath,
+			})
+
+			// 添加字段
+			componentData.ComponentFields = append(componentData.ComponentFields, struct {
+				Name string
+				Type string
+			}{
+				Name: comp.Wire.Name,
+				Type: comp.Wire.Type,
+			})
+
+			// 创建模板以处理 Provider 字符串
+			tmpl, err := template.New("provider").Parse(comp.Wire.Provider)
+			if err != nil {
+				return fmt.Errorf("解析 Provider 模板失败: %v", err)
+			}
+
+			var providerStr strings.Builder
+			err = tmpl.Execute(&providerStr, comp.Wire)
+			if err != nil {
+				return fmt.Errorf("执行 Provider 模板失败: %v", err)
+			}
+
+			// 添加Provider
+			componentData.ComponentProviders = append(componentData.ComponentProviders, struct {
+				Provider     string
+				ProviderName string
+			}{
+				Provider:     providerStr.String(),
+				ProviderName: comp.Wire.ProviderName,
+			})
+		}
+	}
+
+	// 5. 生成 wire.go 文件
 	data := struct {
-		ModuleName   string
-		Imports      []string
-		ProviderSets []string
-		Fields       []string
+		ModuleName         string
+		Imports            []string
+		ProviderSets       []string
+		Fields             []string
+		ComponentImports   []struct{ Path string }
+		ComponentFields    []struct{ Name, Type string }
+		ComponentProviders []struct{ Provider, ProviderName string }
 	}{
-		ModuleName:   moduleName,
-		Imports:      scanner.GenerateWireImports(),
-		ProviderSets: scanner.GenerateWireProviderSets(),
-		Fields:       scanner.GenerateApplicationFields(),
+		ModuleName:         moduleName,
+		Imports:            scanner.GenerateWireImports(),
+		ProviderSets:       scanner.GenerateWireProviderSets(),
+		Fields:             scanner.GenerateApplicationFields(),
+		ComponentImports:   componentData.ComponentImports,
+		ComponentFields:    componentData.ComponentFields,
+		ComponentProviders: componentData.ComponentProviders,
 	}
 
 	// 创建模板

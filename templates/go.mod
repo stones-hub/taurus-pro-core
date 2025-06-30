@@ -1,4 +1,4 @@
-module my-service
+module {{.ProjectName}}
 
 go 1.24
 

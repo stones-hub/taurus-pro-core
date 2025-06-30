@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	"github.com/stones-hub/taurus-pro-core/pkg/components"
 	"github.com/stones-hub/taurus-pro-core/pkg/generator"
 )
 
@@ -46,14 +48,14 @@ func main() {
 
 func runCreate() error {
 	// 获取可选组件
-	optionalComponents := generator.GetOptionalComponents()
+	optionalComponents := components.GetOptionalComponents()
 	componentOptions := make([]string, 0, len(optionalComponents))
 	for _, comp := range optionalComponents {
 		componentOptions = append(componentOptions, fmt.Sprintf("%s (%s)", comp.Description, comp.Package))
 	}
 
 	// 获取必需组件
-	requiredComponents := generator.GetRequiredComponents()
+	requiredComponents := components.GetRequiredComponents()
 	var requiredComponentNames []string
 	for _, comp := range requiredComponents {
 		requiredComponentNames = append(requiredComponentNames, comp.Name)
@@ -131,6 +133,8 @@ func runCreate() error {
 	// 添加必需组件
 	selectedComponents = append(selectedComponents, requiredComponentNames...)
 
+	log.Printf("需要加载的组件名称: %v", selectedComponents)
+
 	// 创建项目生成器
 	gen := generator.NewProjectGenerator(projectPath, selectedComponents)
 
@@ -145,7 +149,7 @@ func runCreate() error {
 	fmt.Println("\n已包含的组件:")
 	fmt.Println("必需组件:")
 	for _, name := range requiredComponentNames {
-		if comp, exists := generator.GetComponentByName(name); exists {
+		if comp, exists := components.GetComponentByName(name); exists {
 			fmt.Printf("- %s (%s)\n", comp.Description, comp.Package)
 		}
 	}
@@ -162,7 +166,7 @@ func runCreate() error {
 				}
 			}
 			if !isRequired {
-				if comp, exists := generator.GetComponentByName(name); exists {
+				if comp, exists := components.GetComponentByName(name); exists {
 					fmt.Printf("- %s (%s)\n", comp.Description, comp.Package)
 				}
 			}

@@ -8,7 +8,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/stones-hub/taurus-pro-core/pkg/scanner"
+	"github.com/stones-hub/taurus-pro-core/pkg/components"
+	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
 )
 
 // Generator 定义项目生成器接口
@@ -47,26 +48,26 @@ func getSystemGoVersion() (string, error) {
 }
 
 // NewProjectGenerator 创建新的项目生成器
-func NewProjectGenerator(projectPath string, components []string) *ProjectGenerator {
+func NewProjectGenerator(projectPath string, selectedComponents []string) *ProjectGenerator {
 	// 获取当前包的路径
 	_, currentFile, _, _ := runtime.Caller(0)
 	templateDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(currentFile))), "templates")
 
 	// 验证组件依赖关系
-	if err := ValidateComponents(components); err != nil {
+	if err := components.ValidateComponents(selectedComponents); err != nil {
 		fmt.Printf("警告: 组件依赖验证失败: %v\n", err)
 	}
 
 	return &ProjectGenerator{
 		ProjectPath: projectPath,
-		Components:  components,
+		Components:  selectedComponents,
 		TemplateDir: templateDir,
 	}
 }
 
 // Generate 生成项目结构
 func (g *ProjectGenerator) Generate() error {
-	required := GetRequiredComponents()
+	required := components.GetRequiredComponents()
 	fmt.Printf("开始生成项目，包含基础组件: ")
 	for i, comp := range required {
 		if i > 0 {
@@ -76,7 +77,7 @@ func (g *ProjectGenerator) Generate() error {
 	}
 	fmt.Println()
 
-	optional := GetOptionalComponents()
+	optional := components.GetOptionalComponents()
 	if len(optional) > 0 {
 		fmt.Printf("可选组件: ")
 		for i, comp := range optional {
@@ -146,8 +147,18 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 		return fmt.Errorf("创建 app 目录失败: %v", err)
 	}
 
+	selectedComponents := make([]types.Component, 0)
+
+	for _, comp := range g.Components {
+		component, ok := components.GetComponentByName(comp)
+		if !ok {
+			return fmt.Errorf("组件 %s 不存在", comp)
+		}
+		selectedComponents = append(selectedComponents, component)
+	}
+
 	// 扫描并生成 wire.go
-	if err := scanner.GenerateWire(appPath); err != nil {
+	if err := GenerateWire(appPath, selectedComponents); err != nil {
 		return fmt.Errorf("生成 wire.go 失败: %v", err)
 	}
 
@@ -186,7 +197,7 @@ func (g *ProjectGenerator) generateGoMod() error {
 	// 添加基础组件
 	addedPackages := make(map[string]bool)
 	// 首先添加必需组件
-	for _, comp := range AllComponents {
+	for _, comp := range components.AllComponents {
 		if comp.Required {
 			if !addedPackages[comp.Package] {
 				requires = append(requires, "\t"+comp.Package+" "+comp.Version)
@@ -197,7 +208,7 @@ func (g *ProjectGenerator) generateGoMod() error {
 
 	// 添加选择的可选组件
 	for _, selectedComp := range g.Components {
-		for _, comp := range AllComponents {
+		for _, comp := range components.AllComponents {
 			if comp.Name == selectedComp && !comp.Required {
 				if !addedPackages[comp.Package] {
 					requires = append(requires, "\t"+comp.Package+" "+comp.Version)
