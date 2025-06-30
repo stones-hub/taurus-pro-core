@@ -47,6 +47,15 @@ var (
 		Required:    true,
 	}
 
+	commonComponent = Component{
+		Name:        "common",
+		Package:     "github.com/stones-hub/taurus-pro-common",
+		Version:     "v0.0.1",
+		Description: "通用组件",
+		IsCustom:    true,
+		Required:    false,
+	}
+
 	redisComponent = Component{
 		Name:        "redis",
 		Package:     "github.com/go-redis/redis/v8",
@@ -62,6 +71,7 @@ var (
 		httpComponent,
 		wireComponent,
 		redisComponent,
+		commonComponent,
 	}
 )
 

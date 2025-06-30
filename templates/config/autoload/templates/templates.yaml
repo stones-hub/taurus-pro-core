@@ -1,4 +1,5 @@
 templates:
+  enable: true
   list:
     - name: "default"
       path: "./templates/default"
