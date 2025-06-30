@@ -18,7 +18,7 @@ RUN go mod download
 COPY . .
 
 # 编译 Go 应用程序
-RUN go build -o main cmd/main.go
+RUN go build -o taurus bin/taurus.go
 
 # 使用一个更小的基础镜像来运行应用程序
 FROM alpine:latest
@@ -42,8 +42,8 @@ WORKDIR ${WORKDIR}
 
 # 从构建阶段复制编译好的二进制文件
 # 在 Dockerfile 中，COPY 指令用于将文件或目录从构建阶段复制到新镜像中。
-# 这里，--from=builder 指定从构建阶段（builder）中复制文件，/app/main 是构建阶段中编译好的二进制文件路径。
-COPY --from=builder ${WORKDIR}/main .
+# 这里，--from=builder 指定从构建阶段（builder）中复制文件，/app/taurus 是构建阶段中编译好的二进制文件路径。
+COPY --from=builder ${WORKDIR}/taurus .
 # 复制应用配置文件
 COPY ${APP_CONFIG} ${WORKDIR}/config
 # 复制静态文件
@@ -51,4 +51,4 @@ COPY ./static ${WORKDIR}/static
 # 复制模板文件
 COPY ./templates ${WORKDIR}/templates
 # 运行应用程序, 为什么这里的配置文件路径是${WORKDIR}/config, 是因为我在Makefile中 docker run的时候bind的目录就是这个
-CMD ["sh", "-c", "./main -config=${WORKDIR}/config"]
+CMD ["sh", "-c", "./taurus -config=${WORKDIR}/config"]

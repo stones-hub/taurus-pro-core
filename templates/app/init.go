@@ -8,9 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	"github.com/stones-hub/taurus-pro-http/pkg/server"
 )
 
 // ANSI escape sequences define colors
@@ -31,6 +28,31 @@ var (
 	Cleanup    func()
 	Err        error
 )
+
+func StartAndWait(httpServer *server.Server) {
+	// use errChan to receive http server startup error
+	errChan := make(chan error, 1)
+	httpServer.Start(errChan)
+
+	// Block until a signal is received or an error is returned.
+	// If an error is returned, it is a fatal error and the program will exit.
+	if err := signalWaiter(errChan); err != nil {
+		log.Fatalf("%sServer startup failed: %v %s\n", Red, err, Reset)
+	}
+
+	// If signalWaiter returns nil, it means the server is running. But received a signal, so we need to shutdown the server.
+	// Create a deadline to wait for, 5 seconds or cancel() are all called ctx.Done()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("%sServer forced to shutdown: %v %s\n", Red, err, Reset)
+	}
+
+	log.Printf("%s🔗 -> Server shutdown successfully. %s\n", Green, Reset)
+	gracefulCleanup(ctx)
+}
 
 // init is automatically called before the main function
 // --env .env.local --config ./config
@@ -57,31 +79,6 @@ func init() {
 	// initialize all modules.
 	// the env file is not needed, because the makefile has already written the environment variables into the env file, but for the sake of rigor, we still pass the env file to the initialize function
 	buildComponents(configPath, env)
-}
-
-func StartAndWait(httpServer *server.Server) {
-	// use errChan to receive http server startup error
-	errChan := make(chan error, 1)
-	httpServer.Start(errChan)
-
-	// Block until a signal is received or an error is returned.
-	// If an error is returned, it is a fatal error and the program will exit.
-	if err := signalWaiter(errChan); err != nil {
-		log.Fatalf("%sServer startup failed: %v %s\n", Red, err, Reset)
-	}
-
-	// If signalWaiter returns nil, it means the server is running. But received a signal, so we need to shutdown the server.
-	// Create a deadline to wait for, 5 seconds or cancel() are all called ctx.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Attempt graceful shutdown
-	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Printf("%sServer forced to shutdown: %v %s\n", Red, err, Reset)
-	}
-
-	log.Printf("%s🔗 -> Server shutdown successfully. %s\n", Green, Reset)
-	gracefulCleanup(ctx)
 }
 
 // signalWaiter waits for a signal or an error, then return

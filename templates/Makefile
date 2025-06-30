@@ -78,7 +78,7 @@ build:
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(BLUE)Building the application...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
-	@go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/main.go
+	@go build -o $(BUILD_DIR)/$(APP_NAME) ./bin/taurus.go
 	@echo -e "$(GREEN)Build complete. Binary is located at $(BUILD_DIR)/$(APP_NAME)$(RESET)"
 	@echo -e "$(SEPARATOR)"
 
