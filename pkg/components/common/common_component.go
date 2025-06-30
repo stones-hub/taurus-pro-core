@@ -37,7 +37,7 @@ func ProvideCronComponent(cfg *config.Config) (*cron.CronManager, error) {
 var CommonComponent = types.Component{
 	Name:         "common",
 	Package:      "github.com/stones-hub/taurus-pro-common",
-	Version:      "v0.0.1",
+	Version:      "v0.0.2",
 	Description:  "通用组件",
 	IsCustom:     true,
 	Required:     false,
