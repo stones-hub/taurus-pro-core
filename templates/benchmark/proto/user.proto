@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package user;
+
+// 用户服务定义
+service UserService {
+    // 一元调用 - 获取单个用户信息
+    rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
+
+    // 服务端流式调用 - 批量获取用户信息
+    rpc GetUserList(GetUserListRequest) returns (stream GetUserInfoResponse) {}
+
+    // 客户端流式调用 - 批量创建用户
+    rpc BatchCreateUsers(stream CreateUserRequest) returns (BatchCreateUsersResponse) {}
+
+    // 双向流式调用 - 实时用户信息同步
+    rpc SyncUserInfo(stream UserInfoSync) returns (stream UserInfoSync) {}
+}
+
+// 请求消息
+message GetUserInfoRequest {
+    int64 user_id = 1;
+}
+
+message GetUserListRequest {
+    repeated int64 user_ids = 1;  // 批量查询的用户ID列表
+    int32 page_size = 2;          // 分页大小
+    int32 page_num = 3;           // 页码
+}
+
+message CreateUserRequest {
+    string username = 1;
+    string email = 2;
+    int32 age = 3;
+    string password = 4;          // 创建用户时的密码
+}
+
+message UserInfoSync {
+    int64 user_id = 1;
+    string username = 2;
+    string email = 3;
+    int32 age = 4;
+    int64 timestamp = 5;          // 同步时间戳
+    string operation = 6;         // 操作类型：create/update/delete
+}
+
+// 响应消息
+message GetUserInfoResponse {
+    int64 user_id = 1;
+    string username = 2;
+    string email = 3;
+    int32 age = 4;
+    string created_at = 5;        // 创建时间
+    string updated_at = 6;        // 更新时间
+}
+
+message BatchCreateUsersResponse {
+    repeated GetUserInfoResponse users = 1;  // 成功创建的用户列表
+    int32 success_count = 2;                 // 成功创建的用户数量
+    int32 failed_count = 3;                  // 创建失败的用户数量
+    repeated string error_messages = 4;       // 失败原因列表
+}
