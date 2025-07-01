@@ -6,6 +6,7 @@ import (
 
 	"github.com/stones-hub/taurus-pro-core/pkg/components/common"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/config"
+	"github.com/stones-hub/taurus-pro-core/pkg/components/grpc"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/http"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/storage"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
@@ -27,6 +28,7 @@ var (
 	AllComponents = []types.Component{
 		config.ConfigComponent,
 		http.HttpComponent,
+		grpc.GrpcComponent,
 		common.CommonComponent,
 		storage.StorageComponent,
 		wireComponent,

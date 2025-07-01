@@ -12,5 +12,6 @@ grpc:
     timeout: 10 # 在Time参数时间后，发送了ping后，如果20秒内没有收到客户端的pong，则关闭连接 单位: 秒
   tls:
     enabled: false
-    cert: "certs/server.crt"
+    crt: "certs/server.crt"
+    ca: "certs/ca.crt"
     key: "certs/server.key"
