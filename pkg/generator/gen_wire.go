@@ -24,7 +24,7 @@ import (
 	"github.com/stones-hub/taurus-pro-config/pkg/config"
 {{- range .ComponentImports}}
 	{{- range .Path}}
-	"{{.}}"
+	{{if hasAlias .}}{{getAlias .}} "{{getPath .}}"{{else}}"{{.}}"{{end}}
 	{{- end}}
 {{- end}}
 {{- range .Imports}}
@@ -85,6 +85,29 @@ func BuildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
 
 	return new(Taurus), nil, nil
 }`
+
+// hasAlias 检查路径是否包含别名
+func hasAlias(path string) bool {
+	return strings.Contains(path, "@")
+}
+
+// getAlias 从路径中获取别名
+func getAlias(path string) string {
+	parts := strings.Split(path, "@")
+	if len(parts) > 1 {
+		return parts[0]
+	}
+	return ""
+}
+
+// getPath 从路径中获取实际路径
+func getPath(path string) string {
+	parts := strings.Split(path, "@")
+	if len(parts) > 1 {
+		return parts[1]
+	}
+	return path
+}
 
 func GenerateWire(scannerPath string, components []types.Component) error {
 	// 获取项目根目录（app 目录的父目录）
@@ -191,7 +214,17 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 	}
 
 	// 创建模板
-	tmpl, err := template.New("wire").Parse(wireTemplate)
+	tmpl := template.New("wire")
+
+	// 添加模板函数
+	tmpl.Funcs(template.FuncMap{
+		"hasAlias": hasAlias,
+		"getAlias": getAlias,
+		"getPath":  getPath,
+	})
+
+	// 解析模板
+	tmpl, err = tmpl.Parse(wireTemplate)
 	if err != nil {
 		return fmt.Errorf("解析模板失败: %v", err)
 	}

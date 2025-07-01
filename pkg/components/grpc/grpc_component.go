@@ -66,23 +66,23 @@ func ProvideGrpcComponent(cfg *config.Config) (*server.Server, func(), error) {
 }
 
 var grpcWire = &types.Wire{
-	RequirePath:  []string{"github.com/stones-hub/taurus-pro-grpc/pkg/grpc/server", "time", "crypto/tls", "crypto/x509", "os", "fmt", "google.golang.org/grpc/keepalive"},
+	RequirePath:  []string{"gRPCServer@github.com/stones-hub/taurus-pro-grpc/pkg/grpc/server", "time", "crypto/tls", "crypto/x509", "os", "fmt", "google.golang.org/grpc/keepalive"},
 	Name:         "GRPC",
-	Type:         "*server.Server",
+	Type:         "*gRPCServer.Server",
 	ProviderName: "ProvideGrpcComponent",
-	Provider: `func {{.ProviderName}}(cfg *config.Config) (*server.Server, func(), error) {
+	Provider: `func {{.ProviderName}}(cfg *config.Config) (*gRPCServer.Server, func(), error) {
 
 	if !cfg.GetBool("grpc.enable") {
 		return nil, nil, nil
 	}
 
-	options := []server.Option{
-		server.WithAddress(cfg.GetString("grpc.address")),
-		server.WithMaxConns(cfg.GetInt("grpc.max_conns")),
+	options := []gRPCServer.ServerOption{
+		gRPCServer.WithAddress(cfg.GetString("grpc.address")),
+		gRPCServer.WithMaxConns(cfg.GetInt("grpc.max_conns")),
 	}
 
 	if cfg.GetBool("grpc.keepalive.enabled") {
-		options = append(options, server.WithKeepAlive(&keepalive.ServerParameters{
+		options = append(options, gRPCServer.WithKeepAlive(&keepalive.ServerParameters{
 			MaxConnectionIdle:     time.Duration(cfg.GetInt("grpc.keepalive.max_connection_idle")) * time.Minute,
 			MaxConnectionAge:      time.Duration(cfg.GetInt("grpc.keepalive.max_connection_age")) * time.Minute,
 			MaxConnectionAgeGrace: time.Duration(cfg.GetInt("grpc.keepalive.max_connection_age_grace")) * time.Second,
@@ -110,7 +110,7 @@ var grpcWire = &types.Wire{
 			return nil, nil, fmt.Errorf("failed to append CA certificate")
 		}
 
-		options = append(options, server.WithTLS(&tls.Config{
+		options = append(options, gRPCServer.WithTLS(&tls.Config{
 			Certificates: []tls.Certificate{cert},
 			ClientAuth:   tls.RequireAndVerifyClientCert,
 			ClientCAs:    certPool,
@@ -118,7 +118,7 @@ var grpcWire = &types.Wire{
 
 	}
 
-	return server.NewServer(options...)
+	return gRPCServer.NewServer(options...)
 }`,
 }
 
