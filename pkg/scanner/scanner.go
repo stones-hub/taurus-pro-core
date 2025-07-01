@@ -61,7 +61,7 @@ func (s *Scanner) ScanDir(dir string) error {
 
 // scanFile 扫描单个Go文件
 func (s *Scanner) scanFile(filename string) error {
-	fmt.Printf("Scanning file: %s\n", filename)
+	// fmt.Printf("Scanning file: %s\n", filename)
 
 	// 读取文件内容
 	content, err := os.ReadFile(filename)
@@ -78,7 +78,7 @@ func (s *Scanner) scanFile(filename string) error {
 
 	// 获取包名
 	pkgPath := s.getPackagePath(filename)
-	fmt.Printf("Package path: %s\n", pkgPath)
+	// fmt.Printf("Package path: %s\n", pkgPath)
 
 	// 存储文件中的结构体定义
 	structs := make(map[string]string)
@@ -98,7 +98,7 @@ func (s *Scanner) scanFile(filename string) error {
 
 			if _, ok := typeSpec.Type.(*ast.StructType); ok {
 				structs[typeSpec.Name.Name] = typeSpec.Name.Name
-				fmt.Printf("Found struct: %s\n", typeSpec.Name.Name)
+				// fmt.Printf("Found struct: %s\n", typeSpec.Name.Name)
 			}
 		}
 	}
@@ -110,7 +110,7 @@ func (s *Scanner) scanFile(filename string) error {
 			continue
 		}
 
-		fmt.Printf("Found variable declaration in %s\n", filename)
+		// fmt.Printf("Found variable declaration in %s\n", filename)
 
 		// 遍历所有变量声明
 		for _, spec := range genDecl.Specs {
@@ -121,12 +121,12 @@ func (s *Scanner) scanFile(filename string) error {
 
 			// 检查变量类型是否为wire.ProviderSet
 			for _, name := range valueSpec.Names {
-				fmt.Printf("Checking variable: %s\n", name.Name)
+				// fmt.Printf("Checking variable: %s\n", name.Name)
 				if len(valueSpec.Values) > 0 {
 					// 如果类型是从初始化表达式推断的
 					if callExpr, ok := valueSpec.Values[0].(*ast.CallExpr); ok {
 						if sel, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
-							fmt.Printf("Call expression: %s.%s\n", sel.X, sel.Sel.Name)
+							// fmt.Printf("Call expression: %s.%s\n", sel.X, sel.Sel.Name)
 							// 检查是否是 wire.NewSet
 							if ident, ok := sel.X.(*ast.Ident); ok {
 								if ident.Name == "wire" && sel.Sel.Name == "NewSet" {
@@ -134,8 +134,8 @@ func (s *Scanner) scanFile(filename string) error {
 									// 例如：UserServiceSet -> UserService
 									structType := strings.TrimSuffix(name.Name, "Set")
 									if _, exists := structs[structType]; exists {
-										fmt.Printf("Found provider set: %s for struct: %s in package %s\n",
-											name.Name, structType, pkgPath)
+										// fmt.Printf("Found provider set: %s for struct: %s in package %s\n",
+										// name.Name, structType, pkgPath)
 										s.providerSets = append(s.providerSets, ProviderSetInfo{
 											Name:       name.Name,
 											PkgPath:    pkgPath,
@@ -175,7 +175,7 @@ func (s *Scanner) getPackagePath(filename string) string {
 
 	// 构造完整的包路径
 	fullPath := pkgPath
-	fmt.Printf("Converting %s to package path: %s\n", filename, fullPath)
+	// fmt.Printf("Converting %s to package path: %s\n", filename, fullPath)
 	return fullPath
 }
 

@@ -20,6 +20,9 @@ var (
 )
 
 func main() {
+	// 禁用默认的日志前缀
+	log.SetFlags(0)
+
 	var rootCmd = &cobra.Command{
 		Use:   "taurus [command] [flags]",
 		Short: "Taurus Pro CLI tool",
@@ -142,8 +145,6 @@ func runCreate() error {
 
 	// 添加必需组件
 	selectedComponents = append(selectedComponents, requiredComponentNames...)
-
-	log.Printf("需要加载的组件名称: %v", selectedComponents)
 
 	// 获取模板目录
 	_, currentFile, _, _ := runtime.Caller(0)
