@@ -10,5 +10,5 @@ var ConfigComponent = types.Component{
 	Description: "配置管理组件",
 	IsCustom:    true,
 	Required:    true,
-	Wire:        nil,
+	Wire:        []*types.Wire{},
 }

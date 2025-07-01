@@ -169,6 +169,12 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 		return fmt.Errorf("执行 go mod tidy 失败: %v\n输出: %s", err, output)
 	}
 
+	// 对wire.go 文件执行 go fmt
+	fmtCmd := exec.Command("go", "fmt", filepath.Join(appPath, "wire.go"))
+	if output, err := fmtCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("执行 go fmt 失败: %v\n输出: %s", err, output)
+	}
+
 	// 执行 wire 命令生成实现
 	cmd := exec.Command("wire")
 	cmd.Dir = appPath

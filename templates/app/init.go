@@ -8,6 +8,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-http/pkg/server"
 )
 
 // ANSI escape sequences define colors

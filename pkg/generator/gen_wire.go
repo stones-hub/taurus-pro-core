@@ -20,11 +20,12 @@ package app
 
 import (
 	"fmt"
-	"time"
 	"github.com/google/wire"
 	"github.com/stones-hub/taurus-pro-config/pkg/config"
 {{- range .ComponentImports}}
-	"{{.Path}}"
+	{{- range .Path}}
+	"{{.}}"
+	{{- end}}
 {{- end}}
 {{- range .Imports}}
 	"{{$.ModuleName}}/{{.}}"
@@ -113,7 +114,7 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 	// 4. 处理组件数据
 	var componentData struct {
 		ComponentImports []struct {
-			Path string
+			Path []string
 		}
 		ComponentFields []struct {
 			Name string
@@ -127,43 +128,46 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 
 	// 处理每个组件
 	for _, comp := range components {
-		if comp.IsCustom && comp.Wire != nil {
-			// 添加导入
-			componentData.ComponentImports = append(componentData.ComponentImports, struct {
-				Path string
-			}{
-				Path: comp.Wire.RequirePath,
-			})
+		if comp.IsCustom && len(comp.Wire) > 0 {
+			for _, wire := range comp.Wire {
+				// 添加导入
+				componentData.ComponentImports = append(componentData.ComponentImports, struct {
+					Path []string
+				}{
+					Path: wire.RequirePath,
+				})
 
-			// 添加字段
-			componentData.ComponentFields = append(componentData.ComponentFields, struct {
-				Name string
-				Type string
-			}{
-				Name: comp.Wire.Name,
-				Type: comp.Wire.Type,
-			})
+				// 添加字段
+				componentData.ComponentFields = append(componentData.ComponentFields, struct {
+					Name string
+					Type string
+				}{
+					Name: wire.Name,
+					Type: wire.Type,
+				})
 
-			// 创建模板以处理 Provider 字符串
-			tmpl, err := template.New("provider").Parse(comp.Wire.Provider)
-			if err != nil {
-				return fmt.Errorf("解析 Provider 模板失败: %v", err)
+				// 创建模板以处理 Provider 字符串
+				tmpl, err := template.New("provider").Parse(wire.Provider)
+				if err != nil {
+					return fmt.Errorf("解析 Provider 模板失败: %v", err)
+				}
+
+				var providerStr strings.Builder
+				err = tmpl.Execute(&providerStr, wire)
+				if err != nil {
+					return fmt.Errorf("执行 Provider 模板失败: %v", err)
+				}
+
+				// 添加Provider
+				componentData.ComponentProviders = append(componentData.ComponentProviders, struct {
+					Provider     string
+					ProviderName string
+				}{
+					Provider:     providerStr.String(),
+					ProviderName: wire.ProviderName,
+				})
+
 			}
-
-			var providerStr strings.Builder
-			err = tmpl.Execute(&providerStr, comp.Wire)
-			if err != nil {
-				return fmt.Errorf("执行 Provider 模板失败: %v", err)
-			}
-
-			// 添加Provider
-			componentData.ComponentProviders = append(componentData.ComponentProviders, struct {
-				Provider     string
-				ProviderName string
-			}{
-				Provider:     providerStr.String(),
-				ProviderName: comp.Wire.ProviderName,
-			})
 		}
 	}
 
@@ -173,7 +177,7 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 		Imports            []string
 		ProviderSets       []string
 		Fields             []string
-		ComponentImports   []struct{ Path string }
+		ComponentImports   []struct{ Path []string }
 		ComponentFields    []struct{ Name, Type string }
 		ComponentProviders []struct{ Provider, ProviderName string }
 	}{
