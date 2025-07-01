@@ -23,7 +23,7 @@ func ProvideHttpComponent(cfg *config.Config) (*server.Server, error) {
 }
 
 var httpWire = &types.Wire{
-	RequirePath:  []string{"github.com/stones-hub/taurus-pro-http/pkg/server", "log"},
+	RequirePath:  []string{"github.com/stones-hub/taurus-pro-http/pkg/server", "log", "time"},
 	Name:         "Http",
 	Type:         "*server.Server",
 	ProviderName: "ProvideHttpComponent",
@@ -44,7 +44,7 @@ return httpServer, nil
 var HttpComponent = types.Component{
 	Name:         "http",
 	Package:      "github.com/stones-hub/taurus-pro-http",
-	Version:      "v0.0.2",
+	Version:      "v0.0.3",
 	Description:  "Http服务器组件",
 	IsCustom:     true,
 	Required:     true,

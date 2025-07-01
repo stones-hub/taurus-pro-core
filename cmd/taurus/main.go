@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -20,18 +21,27 @@ var (
 
 func main() {
 	var rootCmd = &cobra.Command{
-		Use:   "taurus",
+		Use:   "taurus [command] [flags]",
 		Short: "Taurus Pro CLI tool",
 		Long:  `Taurus Pro is a CLI tool for creating and managing Go microservice projects`,
+		Example: `  # 创建新项目
+  taurus create my-project
+
+  # 查看帮助
+  taurus --help
+  taurus create --help`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
 		},
 	}
 
 	var createCmd = &cobra.Command{
-		Use:   "create [project-name]",
-		Short: "Create a new Taurus Pro project",
-		Args:  cobra.ExactArgs(1),
+		Use:                   "create <project-name>",
+		Short:                 "Create a new Taurus Pro project",
+		Args:                  cobra.ExactArgs(1),
+		DisableFlagsInUseLine: true,
+		Example: `  # 在当前目录创建项目
+  taurus create my-project`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName = args[0]
 			return runCreate()
@@ -135,8 +145,13 @@ func runCreate() error {
 
 	log.Printf("需要加载的组件名称: %v", selectedComponents)
 
+	// 获取模板目录
+	_, currentFile, _, _ := runtime.Caller(0)
+	templateDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(currentFile))), "templates")
+
 	// 创建项目生成器
 	gen := generator.NewProjectGenerator(projectPath, selectedComponents)
+	gen.SetTemplateDir(templateDir)
 
 	// 生成项目
 	if err := gen.Generate(); err != nil {

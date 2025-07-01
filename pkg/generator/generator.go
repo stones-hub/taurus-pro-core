@@ -5,114 +5,74 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/stones-hub/taurus-pro-core/pkg/components"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
 )
 
-// Generator 定义项目生成器接口
-type Generator interface {
-	Generate() error
-}
-
-// ProjectGenerator 项目生成器
 type ProjectGenerator struct {
-	ProjectPath string
-	Components  []string
-	TemplateDir string
+	projectPath        string
+	selectedComponents []string
+	templateDir        string
 }
 
-// getSystemGoVersion 获取系统的 Go 版本
-func getSystemGoVersion() (string, error) {
-	cmd := exec.Command("go", "version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("获取 Go 版本失败: %v", err)
-	}
-
-	version := strings.TrimSpace(string(output))
-	parts := strings.Split(version, " ")
-	if len(parts) < 3 {
-		return "", fmt.Errorf("无法解析 Go 版本信息: %s", version)
-	}
-
-	versionNum := strings.TrimPrefix(parts[2], "go")
-	versionParts := strings.Split(versionNum, ".")
-	if len(versionParts) < 2 {
-		return "", fmt.Errorf("无法解析版本号: %s", versionNum)
-	}
-
-	return fmt.Sprintf("%s.%s", versionParts[0], versionParts[1]), nil
-}
-
-// NewProjectGenerator 创建新的项目生成器
 func NewProjectGenerator(projectPath string, selectedComponents []string) *ProjectGenerator {
-	// 获取当前包的路径
-	_, currentFile, _, _ := runtime.Caller(0)
-	templateDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(currentFile))), "templates")
-
-	// 验证组件依赖关系
-	if err := components.ValidateComponents(selectedComponents); err != nil {
-		fmt.Printf("警告: 组件依赖验证失败: %v\n", err)
-	}
-
 	return &ProjectGenerator{
-		ProjectPath: projectPath,
-		Components:  selectedComponents,
-		TemplateDir: templateDir,
+		projectPath:        projectPath,
+		selectedComponents: selectedComponents,
 	}
 }
 
-// Generate 生成项目结构
+// SetTemplateDir 设置模板目录
+func (g *ProjectGenerator) SetTemplateDir(dir string) {
+	g.templateDir = dir
+}
+
 func (g *ProjectGenerator) Generate() error {
-	required := components.GetRequiredComponents()
-	fmt.Printf("开始生成项目，包含基础组件: ")
-	for i, comp := range required {
-		if i > 0 {
-			fmt.Print(", ")
-		}
-		fmt.Print(comp.Name)
-	}
-	fmt.Println()
-
-	optional := components.GetOptionalComponents()
-	if len(optional) > 0 {
-		fmt.Printf("可选组件: ")
-		for i, comp := range optional {
-			if i > 0 {
-				fmt.Print(", ")
-			}
-			fmt.Print(comp.Name)
-		}
-		fmt.Println()
-	}
-
-	if _, err := os.Stat(g.TemplateDir); os.IsNotExist(err) {
-		return fmt.Errorf("模板目录不存在: %s", g.TemplateDir)
-	}
-
-	if err := os.MkdirAll(g.ProjectPath, 0755); err != nil {
+	// 创建项目目录
+	if err := os.MkdirAll(g.projectPath, 0755); err != nil {
 		return fmt.Errorf("创建项目目录失败: %v", err)
 	}
 
-	// 首先复制所有模板文件
-	err := filepath.Walk(g.TemplateDir, func(path string, info os.FileInfo, err error) error {
+	// 复制模板文件
+	if err := g.copyTemplateFiles(); err != nil {
+		return fmt.Errorf("复制模板文件失败: %v", err)
+	}
+
+	// 生成 go.mod
+	if err := g.generateGoMod(); err != nil {
+		return fmt.Errorf("生成 go.mod 失败: %v", err)
+	}
+
+	// 扫描并生成 wire.go
+	appPath := filepath.Join(g.projectPath, "app")
+	if err := g.generateWire(appPath); err != nil {
+		return fmt.Errorf("生成 wire.go 失败: %v", err)
+	}
+
+	fmt.Println("成功生成项目文件")
+	return nil
+}
+
+func (g *ProjectGenerator) copyTemplateFiles() error {
+	return filepath.Walk(g.templateDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		relPath, err := filepath.Rel(g.TemplateDir, path)
+		// 计算相对路径
+		relPath, err := filepath.Rel(g.templateDir, path)
 		if err != nil {
 			return err
 		}
 
+		// 跳过 go.mod 文件，因为我们会单独生成它
 		if relPath == "go.mod" {
 			return nil
 		}
 
-		targetPath := filepath.Join(g.ProjectPath, relPath)
+		targetPath := filepath.Join(g.projectPath, relPath)
 
 		if info.IsDir() {
 			return os.MkdirAll(targetPath, info.Mode())
@@ -120,24 +80,21 @@ func (g *ProjectGenerator) Generate() error {
 
 		return g.copyFile(path, targetPath, info.Mode())
 	})
+}
 
+func (g *ProjectGenerator) copyFile(src, dst string, mode os.FileMode) error {
+	// 读取源文件
+	data, err := os.ReadFile(src)
 	if err != nil {
-		return fmt.Errorf("复制模板文件失败: %v", err)
+		return err
 	}
 
-	// 生成 go.mod 文件
-	if err := g.generateGoMod(); err != nil {
-		return fmt.Errorf("生成 go.mod 失败: %v", err)
-	}
+	// 替换模板变量
+	content := string(data)
+	content = strings.ReplaceAll(content, "{{.ProjectName}}", filepath.Base(g.projectPath))
 
-	// 扫描并生成 wire.go
-	appPath := filepath.Join(g.ProjectPath, "app")
-	if err := g.generateWire(appPath); err != nil {
-		return fmt.Errorf("生成 wire.go 失败: %v", err)
-	}
-
-	fmt.Println("成功生成项目文件")
-	return nil
+	// 创建目标文件
+	return os.WriteFile(dst, []byte(content), mode)
 }
 
 // generateWire 生成 wire.go 文件
@@ -149,7 +106,7 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 
 	selectedComponents := make([]types.Component, 0)
 
-	for _, comp := range g.Components {
+	for _, comp := range g.selectedComponents {
 		component, ok := components.GetComponentByName(comp)
 		if !ok {
 			return fmt.Errorf("组件 %s 不存在", comp)
@@ -164,7 +121,7 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 
 	// 执行 go mod tidy
 	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = g.ProjectPath
+	tidyCmd.Dir = g.projectPath
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("执行 go mod tidy 失败: %v\n输出: %s", err, output)
 	}
@@ -187,7 +144,7 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 
 // generateGoMod 生成新的 go.mod 文件
 func (g *ProjectGenerator) generateGoMod() error {
-	moduleName := filepath.Base(g.ProjectPath)
+	moduleName := filepath.Base(g.projectPath)
 
 	goVersion, err := getSystemGoVersion()
 	if err != nil {
@@ -213,7 +170,7 @@ func (g *ProjectGenerator) generateGoMod() error {
 	}
 
 	// 添加选择的可选组件
-	for _, selectedComp := range g.Components {
+	for _, selectedComp := range g.selectedComponents {
 		for _, comp := range components.AllComponents {
 			if comp.Name == selectedComp && !comp.Required {
 				if !addedPackages[comp.Package] {
@@ -233,22 +190,29 @@ go %s
 
 %s`, moduleName, goVersion, strings.Join(requires, "\n"))
 
-	goModPath := filepath.Join(g.ProjectPath, "go.mod")
+	goModPath := filepath.Join(g.projectPath, "go.mod")
 	return os.WriteFile(goModPath, []byte(content), 0644)
 }
 
-// copyFile 复制单个文件
-func (g *ProjectGenerator) copyFile(src, dst string, mode os.FileMode) error {
-	// 读取源文件内容
-	content, err := os.ReadFile(src)
+// getSystemGoVersion 获取系统的 Go 版本
+func getSystemGoVersion() (string, error) {
+	cmd := exec.Command("go", "version")
+	output, err := cmd.Output()
 	if err != nil {
-		return err
+		return "", fmt.Errorf("获取 Go 版本失败: %v", err)
 	}
 
-	// 替换模板变量
-	fileContent := string(content)
-	fileContent = strings.ReplaceAll(fileContent, "{{.ProjectName}}", filepath.Base(g.ProjectPath))
+	version := strings.TrimSpace(string(output))
+	parts := strings.Split(version, " ")
+	if len(parts) < 3 {
+		return "", fmt.Errorf("无法解析 Go 版本信息: %s", version)
+	}
 
-	// 写入目标文件
-	return os.WriteFile(dst, []byte(fileContent), mode)
+	versionNum := strings.TrimPrefix(parts[2], "go")
+	versionParts := strings.Split(versionNum, ".")
+	if len(versionParts) < 2 {
+		return "", fmt.Errorf("无法解析版本号: %s", versionNum)
+	}
+
+	return fmt.Sprintf("%s.%s", versionParts[0], versionParts[1]), nil
 }
