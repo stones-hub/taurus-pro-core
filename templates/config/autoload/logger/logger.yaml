@@ -2,9 +2,9 @@
 loggers:
   - name: default
     # 日志前缀 , 当 outputType 为 console 时可忽略此配置
-    perfix: ""
-    # 日志等级，可取值： none(无效) error（错误）、warn（警告）、info（信息）、debug（调试）
-    log_level: info
+    prefix: ""
+    # 日志等级，可取值：0: debug, 1: info, 2: warn, 3: error, 4: fatal, 5: none
+    log_level: 0
     # 输出类型，可取值：console（控制台输出）、file（文件输出）
     output_type: file
     # 日志文件路径，支持相对路径和绝对路径，当 outputType 为 console 时可忽略此配置
@@ -21,9 +21,9 @@ loggers:
     formatter: default
   - name: trace
     # 日志前缀 , 当 outputType 为 console 时可忽略此配置
-    perfix: ""
-    # 日志等级，可取值： none(无效) error（错误）、warn（警告）、info（信息）、debug（调试）
-    log_level: info
+    prefix: ""
+    # 日志等级，可取值：0: debug, 1: info, 2: warn, 3: error, 4: fatal, 5: none
+    log_level: 0
     # 输出类型，可取值：console（控制台输出）、file（文件输出）
     output_type: file
     # 日志文件路径，支持相对路径和绝对路径，当 outputType 为 console 时可忽略此配置
