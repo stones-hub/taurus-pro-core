@@ -1,14 +1,14 @@
-telemetry:
+otel:
   enable: true # 是否启用追踪
   service:
-    name: Taurus-server
+    name: Taurus
     version: v0.1.0
     environment: dev
   export:
     protocol: grpc  # 可选值: grpc, http, 监听的数据导出存储起来的通讯协议
     endpoint: 192.168.3.240:4317 # 可选值: 192.168.3.240:4318 http地址, 127.0.0.1:4317 grpc地址
     insecure: true
-    timeout: 10s
+    timeout: 10s # 10秒
   sampling:
     ratio: 1.0  # 1.0 表示全采样 范围 0.0-1.0
   batch:
