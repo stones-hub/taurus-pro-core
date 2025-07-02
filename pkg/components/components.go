@@ -9,6 +9,7 @@ import (
 	"github.com/stones-hub/taurus-pro-core/pkg/components/grpc"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/http"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/storage"
+	"github.com/stones-hub/taurus-pro-core/pkg/components/tcp"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
 )
 
@@ -31,6 +32,7 @@ var (
 		grpc.GrpcComponent,
 		common.CommonComponent,
 		storage.StorageComponent,
+		tcp.TcpComponent,
 		wireComponent,
 	}
 )
