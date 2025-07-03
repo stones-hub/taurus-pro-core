@@ -6,6 +6,7 @@ import (
 
 	"github.com/stones-hub/taurus-pro-core/pkg/components/common"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/config"
+	"github.com/stones-hub/taurus-pro-core/pkg/components/consul"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/grpc"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/http"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/otel"
@@ -35,6 +36,7 @@ var (
 		storage.StorageComponent,
 		tcp.TcpComponent,
 		otel.OtelComponent,
+		consul.ConsulComponent,
 		wireComponent,
 	}
 )

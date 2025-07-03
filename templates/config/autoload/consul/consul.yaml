@@ -1,43 +1,43 @@
 consul:
   enable: true # 是否启用consul
   client:
-    address: "127.0.0.1:8500"
+    address: "192.168.3.240:8500"
     token: ""
     timeout: 5
     scheme: "http"
     datacenter: "dc1" # 数据中心，consul支持不同地域的不同集群，组成一个大集群，这里配置客户端要连接那个数据中心集群
-    wait_time: 10s # 等待consul返回结果的时间，如果超过这个时间，则认为consul不可用
+    wait_time: 10 # 等待consul返回结果的时间，如果超过这个时间，则认为consul不可用
     retry_time: 3 # 重试间隔时间
     max_retrys: 3 # 最大重试次数
-    logger: default # consul支持自定义日志系统
     http_basic_auth: # 如果consul需要认证，则配置用户名和密码, consul的服务端配置文件可以配置认证
       username: ""
       password: ""
   service:
-    name: "" # 服务名称
-    id: "" # 服务ID, 如果为空自动生成
+    name: "taurus" # 服务名称
+    id: "taurus-1" # 服务ID, 如果为空自动生成
     tags: ["http", "tcp", "https"] # 服务标签
-    address: "" # 服务地址
-    port: 0 # 服务端口
-    meta: {"version": "v0.0.1", "type": "http"} # 服务元数据, 定义服务的一些信息, 比如服务版本, 服务类型等
+    address: "192.168.40.30" # 服务地址
+    port: 8080 # 服务端口
+    meta: {version: "v0.0.1", type: "http"} # 服务元数据, 定义服务的一些信息, 比如服务版本, 服务类型等
     healths: # 健康检查配置, 可以配置多个健康检查
       - # 健康检查1
-        http: "" # http的方式健康检查的URL，如果为空，则不启用http健康检查
+        http: "http://192.168.40.30:8080/health" # http的方式健康检查的URL，如果为空，则不启用http健康检查
         http_method: "GET" # http的方式健康检查的请求方法, GET/POST/PUT/DELETE/PATCH
         http_headers:  # http的方式健康检查的请求头 
-          - "Content-Type: application/json"
-          - "Authorization: Bearer <token>"
+          Content-Type: ["application/json","text/plain"]
+          Authorization: ["Bearer <token>"]
+          Accept: ["application/json","text/plain"]
         tcp:  "" # TCP的方式健康检查的地址，如果为空，则不启用TCP健康检查
         interval: 10 # 健康检查的间隔时间
         timeout: 5 # 健康检查的超时时间
         deregister_after: 10 # 服务下线后，consul多久后将服务从注册表中移除, 健康检查不通过后
         tls_skip_verify: false # 是否跳过TLS证书验证
       - # 健康检查2
-        http: "" # http的方式健康检查的URL，如果为空，则不启用http健康检查
+        http: "http://192.168.40.30:8080/health1" # http的方式健康检查的URL，如果为空，则不启用http健康检查
         http_method: "GET" # http的方式健康检查的请求方法, GET/POST/PUT/DELETE/PATCH
         http_headers:  # http的方式健康检查的请求头 
-          - "Content-Type: application/json"
-          - "Authorization: Bearer <token>"
+          Content-Type: ["application/json"]
+          Authorization: ["Bearer <token>"]
         tcp:  "" # TCP的方式健康检查的地址，如果为空，则不启用TCP健康检查
         interval: 10 # 健康检查的间隔时间
         timeout: 5 # 健康检查的超时时间

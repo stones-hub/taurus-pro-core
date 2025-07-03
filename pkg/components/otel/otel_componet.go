@@ -66,11 +66,11 @@ var otelWire = &types.Wire{
 	)
 
 	if err != nil {
-		log.Printf("%s🔗 -> ProvideOtelComponent initialize failed. %s\n", "\033[31m", "\033[0m")
+		log.Printf("%s🔗 -> Initialize otel components failed. %s\n", "\033[31m", "\033[0m")
 		return nil, nil, err
 	}
 
-	log.Printf("%s🔗 -> ProvideOtelComponent initialized successfully. %s\n", "\033[32m", "\033[0m")
+	log.Printf("%s🔗 -> Initialize otel components successfully. %s\n", "\033[32m", "\033[0m")
 
 	// 添加配置的tracer
 	tracers := cfg.GetStringSlice("otel.tracers")
@@ -80,7 +80,7 @@ var otelWire = &types.Wire{
 
 	return provider, func() {
 		cleanup()
-		log.Printf("%s🔗 -> ProvideOtelComponent cleanup. %s\n", "\033[32m", "\033[0m")
+		log.Printf("%s🔗 -> Clean up otel components successfully. %s\n", "\033[32m", "\033[0m")
 	}, nil
 }`,
 }
@@ -126,11 +126,11 @@ func ProvideOtelComponent(cfg *config.Config) (*otelemetry.OTelProvider, func(),
 	)
 
 	if err != nil {
-		log.Printf("%s🔗 -> ProvideOtelComponent initialize failed. %s\n", "\033[31m", "\033[0m")
+		log.Printf("%s🔗 -> Initialize otel components failed. %s\n", "\033[31m", "\033[0m")
 		return nil, nil, err
 	}
 
-	log.Printf("%s🔗 -> ProvideOtelComponent initialized successfully. %s\n", "\033[32m", "\033[0m")
+	log.Printf("%s🔗 -> Initialize otel components successfully. %s\n", "\033[32m", "\033[0m")
 
 	// 添加配置的tracer
 	tracers := cfg.GetStringSlice("otel.tracers")
@@ -140,6 +140,6 @@ func ProvideOtelComponent(cfg *config.Config) (*otelemetry.OTelProvider, func(),
 
 	return provider, func() {
 		cleanup()
-		log.Printf("%s🔗 -> ProvideOtelComponent cleanup. %s\n", "\033[32m", "\033[0m")
+		log.Printf("%s🔗 -> Clean up otel components successfully. %s\n", "\033[32m", "\033[0m")
 	}, nil
 }
