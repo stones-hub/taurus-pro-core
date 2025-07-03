@@ -9,7 +9,7 @@ require (
 	github.com/stones-hub/taurus-pro-common v0.0.4
 	github.com/stones-hub/taurus-pro-config v0.0.2
 	github.com/stones-hub/taurus-pro-grpc v0.0.1
-	github.com/stones-hub/taurus-pro-http v0.0.4
+	github.com/stones-hub/taurus-pro-http v0.0.5
 	github.com/stones-hub/taurus-pro-opentelemetry v0.0.1
 	github.com/stones-hub/taurus-pro-storage v0.0.3
 	github.com/stones-hub/taurus-pro-tcp v0.0.1
@@ -19,6 +19,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/ThinkInAIXYZ/go-mcp v0.2.16 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -41,11 +42,16 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
+	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
 	github.com/redis/go-redis/v9 v9.11.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
