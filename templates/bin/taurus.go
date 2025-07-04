@@ -1,21 +1,24 @@
+//lint:file-ignore ST1001 dot imports are allowed here
+
 package main
 
 import (
 	"net/http"
 
 	"{{.ProjectName}}/app"
+	. "{{.ProjectName}}/app/constants"
 
 	"github.com/stones-hub/taurus-pro-http/pkg/router"
 )
 
 func main() {
 
-	app.T.Http.AddRouter(router.Router{
+	Taurus.Http.AddRouter(router.Router{
 		Path:    "/home",
 		Handler: http.HandlerFunc(app.T.IndexController.Home),
 	})
 
-	app.T.Http.AddRouter(router.Router{
+	Taurus.Http.AddRouter(router.Router{
 		Path: "/health",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -23,7 +26,7 @@ func main() {
 		}),
 	})
 
-	app.T.Http.AddRouter(router.Router{
+	Taurus.Http.AddRouter(router.Router{
 		Path: "/health1",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
