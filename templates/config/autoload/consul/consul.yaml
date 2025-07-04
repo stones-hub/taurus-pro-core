@@ -21,7 +21,7 @@ consul:
     meta: {version: "v0.0.1", type: "http"} # 服务元数据, 定义服务的一些信息, 比如服务版本, 服务类型等
     healths: # 健康检查配置, 可以配置多个健康检查
       - # 健康检查1
-        http: "http://192.168.40.30:8080/health" # http的方式健康检查的URL，如果为空，则不启用http健康检查
+        http: "http://192.168.40.30:${SERVER_PORT:8080}/health" # http的方式健康检查的URL，如果为空，则不启用http健康检查
         http_method: "GET" # http的方式健康检查的请求方法, GET/POST/PUT/DELETE/PATCH
         http_headers:  # http的方式健康检查的请求头 
           Content-Type: ["application/json","text/plain"]
@@ -33,7 +33,7 @@ consul:
         deregister_after: 10 # 服务下线后，consul多久后将服务从注册表中移除, 健康检查不通过后
         tls_skip_verify: false # 是否跳过TLS证书验证
       - # 健康检查2
-        http: "http://192.168.40.30:8080/health1" # http的方式健康检查的URL，如果为空，则不启用http健康检查
+        http: "http://192.168.40.30:${SERVER_PORT:8080}/health1" # http的方式健康检查的URL，如果为空，则不启用http健康检查
         http_method: "GET" # http的方式健康检查的请求方法, GET/POST/PUT/DELETE/PATCH
         http_headers:  # http的方式健康检查的请求头 
           Content-Type: ["application/json"]

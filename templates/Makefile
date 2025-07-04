@@ -32,12 +32,12 @@ ifeq ($(strip $(APP_NAME)),)
 $(error $(RED)APP_NAME is not set in the environment variables$(RESET))
 endif
 
-ifeq ($(strip $(APP_HOST)),)
-$(error $(RED)APP_HOST is not set in the environment variables$(RESET))
+ifeq ($(strip $(SERVER_ADDRESS)),)
+$(error $(RED)SERVER_ADDRESS is not set in the environment variables$(RESET))
 endif
 
-ifeq ($(strip $(APP_PORT)),)
-$(error $(RED)APP_PORT is not set in the environment variables$(RESET))
+ifeq ($(strip $(SERVER_PORT)),)
+$(error $(RED)SERVER_PORT is not set in the environment variables$(RESET))
 endif
 
 ifeq ($(strip $(APP_CONFIG)),)
