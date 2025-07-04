@@ -26,8 +26,8 @@ var (
 	env        = ".env.local"
 	configPath = "./config"
 	T          *Taurus
-	Cleanup    func()
-	Err        error
+	cleanup    func()
+	err        error
 )
 
 func Run() {
@@ -88,7 +88,7 @@ func gracefulCleanup(ctx context.Context) {
 	done := make(chan struct{})
 
 	go func() {
-		Cleanup()
+		cleanup()
 		done <- struct{}{}
 	}()
 
@@ -133,12 +133,12 @@ func init() {
 // env is the environment file
 func buildComponents(configPath, env string) {
 	// build Taurus
-	T, Cleanup, Err = BuildTaurus(&ConfigOptions{
+	T, cleanup, err = buildTaurus(&ConfigOptions{
 		ConfigPath:  configPath,
 		Env:         env,
 		PrintEnable: true,
 	})
-	if Err != nil {
-		log.Fatal(Err)
+	if err != nil {
+		log.Fatal(err)
 	}
 }

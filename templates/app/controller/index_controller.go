@@ -20,5 +20,8 @@ var IndexControllerSet = wire.NewSet(wire.Struct(new(IndexController), "*"))
 // Home 处理首页请求
 func (c *IndexController) Home(w http.ResponseWriter, r *http.Request) {
 	content := c.IndexService.Home()
+
+	panic(content)
+
 	httpx.SendResponse(w, http.StatusOK, content, nil)
 }

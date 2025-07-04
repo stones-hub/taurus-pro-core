@@ -3,22 +3,26 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
-	"{{.ProjectName}}/app"
-	. "{{.ProjectName}}/app/constants"
-
+	"github.com/stones-hub/taurus-pro-http/pkg/middleware"
 	"github.com/stones-hub/taurus-pro-http/pkg/router"
+	"{{.ProjectName}}/app"
 )
 
 func main() {
-
-	Taurus.Http.AddRouter(router.Router{
+	app.T.Http.AddRouter(router.Router{
 		Path:    "/home",
 		Handler: http.HandlerFunc(app.T.IndexController.Home),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
 	})
 
-	Taurus.Http.AddRouter(router.Router{
+	app.T.Http.AddRouter(router.Router{
 		Path: "/health",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -26,7 +30,7 @@ func main() {
 		}),
 	})
 
-	Taurus.Http.AddRouter(router.Router{
+	app.T.Http.AddRouter(router.Router{
 		Path: "/health1",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)

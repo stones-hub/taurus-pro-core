@@ -64,8 +64,8 @@ func ProvideConfigComponent(opts *ConfigOptions) (*config.Config, error) {
 
 {{- end}}
 
-// BuildTaurus 构建应用程序
-func BuildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
+// buildTaurus 构建应用程序
+func buildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
 	wire.Build(
 		// 配置组件
 		ProvideConfigComponent,
