@@ -9,8 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/stones-hub/taurus-pro-http/pkg/server"
 )
 
 // ANSI escape sequences define colors
@@ -32,10 +30,10 @@ var (
 	Err        error
 )
 
-func StartAndWait(httpServer *server.Server) {
+func Run() {
 	// use errChan to receive http server startup error
 	errChan := make(chan error, 1)
-	httpServer.Start(errChan)
+	T.Http.Start(errChan)
 
 	// Block until a signal is received or an error is returned.
 	// If an error is returned, it is a fatal error and the program will exit.
@@ -49,39 +47,12 @@ func StartAndWait(httpServer *server.Server) {
 	defer cancel()
 
 	// Attempt graceful shutdown
-	if err := httpServer.Shutdown(ctx); err != nil {
+	if err := T.Http.Shutdown(ctx); err != nil {
 		log.Printf("%sServer forced to shutdown: %v %s\n", Red, err, Reset)
 	}
 
 	log.Printf("%s🔗 -> Server shutdown successfully. %s\n", Green, Reset)
 	gracefulCleanup(ctx)
-}
-
-// init is automatically called before the main function
-// --env .env.local --config ./config
-func init() {
-	// custom usage
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "\n%s\n", Cyan+"==================== Usage ===================="+Reset)
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s-e, --env <file>%s      Specify the environment file (default \".env.local\")\n", Green, Reset)
-		fmt.Fprintf(os.Stderr, "  %s-c, --config <path>%s   Specify the configuration file or directory (default \"config\")\n", Green, Reset)
-		fmt.Fprintf(os.Stderr, "  %s-h, --help%s            Show this help message\n", Green, Reset)
-		fmt.Fprintf(os.Stderr, "%s\n", Cyan+"==============================================="+Reset)
-	}
-
-	// set command line arguments and their aliases
-	flag.StringVar(&env, "env", ".env.local", "Environment file")
-	flag.StringVar(&env, "e", ".env.local", "Environment file (alias)")
-	flag.StringVar(&configPath, "config", "config", "Path to the configuration file or directory")
-	flag.StringVar(&configPath, "c", "config", "Path to the configuration file or directory (alias)")
-
-	// parse command line arguments
-	flag.Parse()
-
-	// initialize all modules.
-	// the env file is not needed, because the makefile has already written the environment variables into the env file, but for the sake of rigor, we still pass the env file to the initialize function
-	buildComponents(configPath, env)
 }
 
 // signalWaiter waits for a signal or an error, then return
@@ -128,6 +99,33 @@ func gracefulCleanup(ctx context.Context) {
 		// If 5 seconds have passed and the server has not stopped, it means the server is not responding, so we need to force it to stop.
 		log.Printf("%s🔗 -> Server stopped forcefully. %s\n", Red, Reset)
 	}
+}
+
+// init is automatically called before the main function
+// --env .env.local --config ./config
+func init() {
+	// custom usage
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "\n%s\n", Cyan+"==================== Usage ===================="+Reset)
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s-e, --env <file>%s      Specify the environment file (default \".env.local\")\n", Green, Reset)
+		fmt.Fprintf(os.Stderr, "  %s-c, --config <path>%s   Specify the configuration file or directory (default \"config\")\n", Green, Reset)
+		fmt.Fprintf(os.Stderr, "  %s-h, --help%s            Show this help message\n", Green, Reset)
+		fmt.Fprintf(os.Stderr, "%s\n", Cyan+"==============================================="+Reset)
+	}
+
+	// set command line arguments and their aliases
+	flag.StringVar(&env, "env", ".env.local", "Environment file")
+	flag.StringVar(&env, "e", ".env.local", "Environment file (alias)")
+	flag.StringVar(&configPath, "config", "config", "Path to the configuration file or directory")
+	flag.StringVar(&configPath, "c", "config", "Path to the configuration file or directory (alias)")
+
+	// parse command line arguments
+	flag.Parse()
+
+	// initialize all modules.
+	// the env file is not needed, because the makefile has already written the environment variables into the env file, but for the sake of rigor, we still pass the env file to the initialize function
+	buildComponents(configPath, env)
 }
 
 // buildComponents builds all components

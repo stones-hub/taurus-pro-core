@@ -31,5 +31,5 @@ func main() {
 		}),
 	})
 
-	app.StartAndWait(app.T.Http)
+	app.Run()
 }
