@@ -9,6 +9,7 @@ import (
 
 	"github.com/stones-hub/taurus-pro-core/pkg/components"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
+	"github.com/stones-hub/taurus-pro-core/pkg/project"
 )
 
 type ProjectGenerator struct {
@@ -45,10 +46,16 @@ func (g *ProjectGenerator) Generate() error {
 		return fmt.Errorf("生成 go.mod 失败: %v", err)
 	}
 
-	// 扫描并生成 wire.go
+	// 生成组件components 的 wire.go
+	componentWriePath := filepath.Join(g.projectPath, "internal", "taurus")
+	if err := g.generateComponentWire(componentWriePath); err != nil {
+		return fmt.Errorf("生成 components wire.go 失败: %v", err)
+	}
+
+	//  扫描并生成 app 的 wire.go
 	appPath := filepath.Join(g.projectPath, "app")
-	if err := g.generateWire(appPath); err != nil {
-		return fmt.Errorf("生成 wire.go 失败: %v", err)
+	if err := g.generateProjectWire(appPath); err != nil {
+		return fmt.Errorf("生成 project wire.go 失败: %v", err)
 	}
 
 	fmt.Println("成功生成项目文件")
@@ -98,24 +105,14 @@ func (g *ProjectGenerator) copyFile(src, dst string, mode os.FileMode) error {
 }
 
 // generateWire 生成 wire.go 文件
-func (g *ProjectGenerator) generateWire(appPath string) error {
+func (g *ProjectGenerator) generateProjectWire(appPath string) error {
 	// 确保 app 目录存在
 	if err := os.MkdirAll(appPath, 0755); err != nil {
 		return fmt.Errorf("创建 app 目录失败: %v", err)
 	}
 
-	selectedComponents := make([]types.Component, 0)
-
-	for _, comp := range g.selectedComponents {
-		component, ok := components.GetComponentByName(comp)
-		if !ok {
-			return fmt.Errorf("组件 %s 不存在", comp)
-		}
-		selectedComponents = append(selectedComponents, component)
-	}
-
 	// 扫描并生成 wire.go
-	if err := GenerateWire(appPath, selectedComponents); err != nil {
+	if err := project.GenerateProjectWire(appPath); err != nil {
 		return fmt.Errorf("生成 wire.go 失败: %v", err)
 	}
 
@@ -135,6 +132,49 @@ func (g *ProjectGenerator) generateWire(appPath string) error {
 	// 执行 wire 命令生成实现
 	cmd := exec.Command("wire")
 	cmd.Dir = appPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("执行 wire 命令失败: %v\n输出: %s", err, output)
+	}
+
+	return nil
+}
+
+func (g *ProjectGenerator) generateComponentWire(componentWriePath string) error {
+	if err := os.MkdirAll(componentWriePath, 0755); err != nil {
+		return fmt.Errorf("创建 projectPath 目录失败: %v", err)
+	}
+
+	selectedComponents := make([]types.Component, 0)
+
+	for _, comp := range g.selectedComponents {
+		component, ok := components.GetComponentByName(comp)
+		if !ok {
+			return fmt.Errorf("组件 %s 不存在", comp)
+		}
+		selectedComponents = append(selectedComponents, component)
+	}
+
+	// 扫描并生成 wire.go
+	if err := components.GenerateComponentWire(selectedComponents, componentWriePath); err != nil {
+		return fmt.Errorf("生成 wire.go 失败: %v", err)
+	}
+
+	// 执行 go mod tidy
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = g.projectPath
+	if output, err := tidyCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("执行 go mod tidy 失败: %v\n输出: %s", err, output)
+	}
+
+	// 对wire.go 文件执行 go fmt
+	fmtCmd := exec.Command("go", "fmt", filepath.Join(componentWriePath, "wire.go"))
+	if output, err := fmtCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("执行 go fmt 失败: %v\n输出: %s", err, output)
+	}
+
+	// 执行 wire 命令生成实现
+	cmd := exec.Command("wire")
+	cmd.Dir = componentWriePath
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("执行 wire 命令失败: %v\n输出: %s", err, output)
 	}

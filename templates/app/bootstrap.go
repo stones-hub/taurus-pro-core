@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"{{.ProjectName}}/internal/taurus"
 )
 
 // ANSI escape sequences define colors
@@ -25,15 +27,15 @@ const (
 var (
 	env        = ".env.local"
 	configPath = "./config"
-	T          *Taurus
-	cleanup    func()
+	Core       *Injector
+	cleanups   []func()
 	err        error
 )
 
 func Run() {
 	// use errChan to receive http server startup error
 	errChan := make(chan error, 1)
-	T.Http.Start(errChan)
+	taurus.Container.Http.Start(errChan)
 
 	// Block until a signal is received or an error is returned.
 	// If an error is returned, it is a fatal error and the program will exit.
@@ -47,7 +49,7 @@ func Run() {
 	defer cancel()
 
 	// Attempt graceful shutdown
-	if err := T.Http.Shutdown(ctx); err != nil {
+	if err := taurus.Container.Http.Shutdown(ctx); err != nil {
 		log.Printf("%sServer forced to shutdown: %v %s\n", Red, err, Reset)
 	}
 
@@ -88,7 +90,9 @@ func gracefulCleanup(ctx context.Context) {
 	done := make(chan struct{})
 
 	go func() {
-		cleanup()
+		for _, cleanup := range cleanups {
+			cleanup()
+		}
 		done <- struct{}{}
 	}()
 
@@ -125,20 +129,17 @@ func init() {
 
 	// initialize all modules.
 	// the env file is not needed, because the makefile has already written the environment variables into the env file, but for the sake of rigor, we still pass the env file to the initialize function
-	buildComponents(configPath, env)
-}
-
-// buildComponents builds all components
-// configPath is the path to the configuration file or directory
-// env is the environment file
-func buildComponents(configPath, env string) {
-	// build Taurus
-	T, cleanup, err = buildTaurus(&ConfigOptions{
-		ConfigPath:  configPath,
-		Env:         env,
-		PrintEnable: true,
-	})
+	cleanup, err := taurus.BuildComponents(configPath, env)
 	if err != nil {
 		log.Fatal(err)
 	}
+	cleanups = append(cleanups, cleanup)
+
+	// initialize project modules
+	Core, cleanup, err = buildInjector()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	cleanups = append(cleanups, cleanup)
 }

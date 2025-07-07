@@ -1,4 +1,4 @@
-package generator
+package components
 
 import (
 	"fmt"
@@ -9,14 +9,13 @@ import (
 	"text/template"
 
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
-	"github.com/stones-hub/taurus-pro-core/pkg/scanner"
 )
 
 // wire.go 模板
 const wireTemplate = `//go:build wireinject
 // +build wireinject
 
-package app
+package taurus 
 
 import (
 	"fmt"
@@ -27,9 +26,6 @@ import (
 	{{if hasAlias .}}{{getAlias .}} "{{getPath .}}"{{else}}"{{.}}"{{end}}
 	{{- end}}
 {{- end}}
-{{- range .Imports}}
-	"{{$.ModuleName}}/{{.}}"
-{{- end}}
 )
 
 // ConfigOptions 配置选项
@@ -39,14 +35,11 @@ type ConfigOptions struct {
 	PrintEnable  bool
 }
 
-// Taurus 应用程序结构
-type Taurus struct {
+// Components 组件容器
+type Components struct {
 	Config *config.Config
 {{- range .ComponentFields}}
 	{{.Name}} {{.Type}}
-{{- end}}
-{{- range .Fields}}
-	{{.}}
 {{- end}}
 }
 
@@ -64,8 +57,8 @@ func ProvideConfigComponent(opts *ConfigOptions) (*config.Config, error) {
 
 {{- end}}
 
-// buildTaurus 构建应用程序
-func buildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
+// buildComponents 构建应用程序
+func buildComponents(opts *ConfigOptions) (*Components, func(), error) {
 	wire.Build(
 		// 配置组件
 		ProvideConfigComponent,
@@ -74,16 +67,11 @@ func buildTaurus(opts *ConfigOptions) (*Taurus, func(), error) {
 {{- range .ComponentProviders}}
 		{{.ProviderName}},
 {{- end}}
-
 		// 应用结构
-		wire.Struct(new(Taurus), "*"),
-		// 扫描到的 provider sets
-{{- range .ProviderSets}}
-		{{.}},
-{{- end}}
+		wire.Struct(new(Components), "*"),
 	)
 
-	return new(Taurus), nil, nil
+	return new(Components), nil, nil
 }`
 
 // hasAlias 检查路径是否包含别名
@@ -109,32 +97,7 @@ func getPath(path string) string {
 	return path
 }
 
-func GenerateWire(scannerPath string, components []types.Component) error {
-	// 获取项目根目录（app 目录的父目录）
-	projectRoot := filepath.Dir(scannerPath)
-
-	// 获取模块名称
-	moduleName, err := getModuleName(projectRoot)
-	if err != nil {
-		return fmt.Errorf("获取模块名称失败: %v", err)
-	}
-
-	// 1. 创建扫描器
-	scanner := scanner.NewScanner(projectRoot, moduleName)
-
-	// 2. 扫描 app 目录下的所有 provider sets
-	if err := scanner.ScanDir(scannerPath); err != nil {
-		return fmt.Errorf("扫描目录失败: %v", err)
-	}
-
-	// 3. 获取扫描结果
-	providerSets := scanner.GetProviderSets()
-	log.Printf("Found %d provider sets:", len(providerSets))
-	for _, set := range providerSets {
-		log.Printf("  - %s.%s (%s)", filepath.Base(set.PkgPath), set.Name, set.StructType)
-	}
-
-	// 4. 处理组件数据
+func GenerateComponentWire(components []types.Component, outputPath string) error {
 	var componentData struct {
 		ComponentImports []struct {
 			Path []string
@@ -196,18 +159,10 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 
 	// 5. 生成 wire.go 文件
 	data := struct {
-		ModuleName         string
-		Imports            []string
-		ProviderSets       []string
-		Fields             []string
 		ComponentImports   []struct{ Path []string }
 		ComponentFields    []struct{ Name, Type string }
 		ComponentProviders []struct{ Provider, ProviderName string }
 	}{
-		ModuleName:         moduleName,
-		Imports:            scanner.GenerateWireImports(),
-		ProviderSets:       scanner.GenerateWireProviderSets(),
-		Fields:             scanner.GenerateApplicationFields(),
 		ComponentImports:   componentData.ComponentImports,
 		ComponentFields:    componentData.ComponentFields,
 		ComponentProviders: componentData.ComponentProviders,
@@ -224,13 +179,13 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 	})
 
 	// 解析模板
-	tmpl, err = tmpl.Parse(wireTemplate)
+	tmpl, err := tmpl.Parse(wireTemplate)
 	if err != nil {
 		return fmt.Errorf("解析模板失败: %v", err)
 	}
 
 	// 创建 wire.go 文件
-	f, err := os.Create(filepath.Join(scannerPath, "wire.go"))
+	f, err := os.Create(filepath.Join(outputPath, "wire.go"))
 	if err != nil {
 		return fmt.Errorf("创建 wire.go 失败: %v", err)
 	}
@@ -241,24 +196,6 @@ func GenerateWire(scannerPath string, components []types.Component) error {
 		return fmt.Errorf("执行模板失败: %v", err)
 	}
 
-	log.Println("Successfully generated wire.go")
+	log.Println("生成组件 wire.go 成功")
 	return nil
-}
-
-// getModuleName 从 go.mod 文件中获取模块名称
-func getModuleName(projectRoot string) (string, error) {
-	goModPath := filepath.Join(projectRoot, "go.mod")
-	content, err := os.ReadFile(goModPath)
-	if err != nil {
-		return "", fmt.Errorf("读取 go.mod 失败: %v", err)
-	}
-
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
-		}
-	}
-
-	return "", fmt.Errorf("在 go.mod 中未找到模块名称")
 }
