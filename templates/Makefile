@@ -69,12 +69,25 @@ RELEASE_FILE_NAME := $(APP_NAME)-$(VERSION)
 PACKAGE_DIR := $(RELEASE_DIR)/$(RELEASE_FILE_NAME)
 
 # ---------------------------- 构建目标 --------------------------------
-.PHONY: all build clean docker-run docker-stop local-run local-stop docker-compose-up docker-compose-down docker-compose-start docker-compose-stop docker-image-push docker-swarm-up docker-swarm-down docker-update-app docker-swarm-deploy-app local-release
+.PHONY: all build clean docker-run docker-stop local-run local-stop docker-compose-up docker-compose-down docker-compose-start docker-compose-stop docker-image-push docker-swarm-up docker-swarm-down docker-update-app docker-swarm-deploy-app local-release wire run 
 # Default target
 all: build
 
+wire:
+	@echo -e "$(SEPARATOR)"
+	@echo -e "$(BLUE)Generating wire code...$(RESET)"
+	@wire ./app/wire.go
+	@echo -e "$(GREEN)Wire code generated.$(RESET)"
+	@echo -e "$(SEPARATOR)"
+
+run: wire
+	@echo -e "$(SEPARATOR)"
+	@echo -e "$(BLUE)Running the application...$(RESET)"
+	@go run ./bin/taurus.go
+	@echo -e "$(SEPARATOR)"
+
 # Build the Go application
-build:
+build: wire
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(BLUE)Building the application...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
