@@ -76,7 +76,7 @@ all: build
 wire:
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(BLUE)Generating wire code...$(RESET)"
-	@wire ./app/wire.go
+	@./scripts/wire/gen_wire -project-root $(PWD)
 	@wire ./internal/taurus/wire.go
 	@echo -e "$(GREEN)Wire code generated.$(RESET)"
 	@echo -e "$(SEPARATOR)"
