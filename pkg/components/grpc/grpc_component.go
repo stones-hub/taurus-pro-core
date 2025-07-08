@@ -17,7 +17,7 @@ import (
 func ProvideGrpcComponent(cfg *config.Config) (*server.Server, func(), error) {
 
 	if !cfg.GetBool("grpc.enable") {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	options := []server.ServerOption{
@@ -40,18 +40,18 @@ func ProvideGrpcComponent(cfg *config.Config) (*server.Server, func(), error) {
 		// 加载服务器证书和私钥
 		cert, err := tls.LoadX509KeyPair(cfg.GetString("grpc.tls.crt"), cfg.GetString("grpc.tls.key"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load key pair: %v", err)
+			return nil, func() {}, fmt.Errorf("failed to load key pair: %v", err)
 		}
 
 		// 加载 CA 证书用于验证客户端证书
 		caCert, err := os.ReadFile(cfg.GetString("grpc.tls.ca"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read CA certificate: %v", err)
+			return nil, func() {}, fmt.Errorf("failed to read CA certificate: %v", err)
 		}
 
 		certPool := x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(caCert) {
-			return nil, nil, fmt.Errorf("failed to append CA certificate")
+			return nil, func() {}, fmt.Errorf("failed to append CA certificate")
 		}
 
 		options = append(options, server.WithTLS(&tls.Config{
@@ -73,7 +73,7 @@ var grpcWire = &types.Wire{
 	Provider: `func {{.ProviderName}}(cfg *config.Config) (*gRPCServer.Server, func(), error) {
 
 	if !cfg.GetBool("grpc.enable") {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	options := []gRPCServer.ServerOption{
@@ -96,18 +96,18 @@ var grpcWire = &types.Wire{
 		// 加载服务器证书和私钥
 		cert, err := tls.LoadX509KeyPair(cfg.GetString("grpc.tls.crt"), cfg.GetString("grpc.tls.key"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load key pair: %v", err)
+			return nil, func() {}, fmt.Errorf("failed to load key pair: %v", err)
 		}
 
 		// 加载 CA 证书用于验证客户端证书
 		caCert, err := os.ReadFile(cfg.GetString("grpc.tls.ca"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read CA certificate: %v", err)
+			return nil, func() {}, fmt.Errorf("failed to read CA certificate: %v", err)
 		}
 
 		certPool := x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(caCert) {
-			return nil, nil, fmt.Errorf("failed to append CA certificate")
+			return nil, func() {}, fmt.Errorf("failed to append CA certificate")
 		}
 
 		options = append(options, gRPCServer.WithTLS(&tls.Config{

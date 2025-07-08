@@ -27,7 +27,7 @@ var consulWire = &types.Wire{
 	ProviderName: "ProvideConsulComponent",
 	Provider: `func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 	if !cfg.GetBool("consul.enable") {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	options := make([]consul.Option, 0)
@@ -50,7 +50,7 @@ var consulWire = &types.Wire{
 	client, err := consul.NewClient(options...)
 	if err != nil {
 		log.Printf("consul.NewClient error: %v", err)
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	client.Put("config/"+cfg.GetString("consul.service.name"), []byte(cfg.ToJSONString()))
@@ -102,7 +102,7 @@ var consulWire = &types.Wire{
 
 	if err := client.RegisterService(&serviceConfig); err != nil {
 		log.Printf("consul.RegisterService error: %v", err)
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	if err := client.WatchConfig("config/"+cfg.GetString("consul.service.name"), cfg, &consul.WatchOptions{
@@ -110,7 +110,7 @@ var consulWire = &types.Wire{
 		RetryTime: time.Duration(cfg.GetInt("consul.watch.retry_time")) * time.Second,
 	}); err != nil {
 		log.Printf("consul.WatchConfig error: %v", err)
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Initialize consul components successfully. %s\n", "\033[32m", "\033[0m")
@@ -127,7 +127,7 @@ var consulWire = &types.Wire{
 
 func ProvideConsulComponent(cfg *config.Config) (*consul.Client, func(), error) {
 	if !cfg.GetBool("consul.enable") {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	options := make([]consul.Option, 0)
@@ -150,7 +150,7 @@ func ProvideConsulComponent(cfg *config.Config) (*consul.Client, func(), error) 
 	client, err := consul.NewClient(options...)
 	if err != nil {
 		log.Printf("consul.NewClient error: %v", err)
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	client.Put("config/"+cfg.GetString("consul.service.name"), []byte(cfg.ToJSONString()))
@@ -202,7 +202,7 @@ func ProvideConsulComponent(cfg *config.Config) (*consul.Client, func(), error) 
 
 	if err := client.RegisterService(&serviceConfig); err != nil {
 		log.Printf("consul.RegisterService error: %v", err)
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	if err := client.WatchConfig("config/"+cfg.GetString("consul.service.name"), cfg, &consul.WatchOptions{
@@ -210,7 +210,7 @@ func ProvideConsulComponent(cfg *config.Config) (*consul.Client, func(), error) 
 		RetryTime: time.Duration(cfg.GetInt("consul.watch.retry_time")) * time.Second,
 	}); err != nil {
 		log.Printf("consul.WatchConfig error: %v", err)
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Initialize consul components successfully. %s\n", "\033[32m", "\033[0m")

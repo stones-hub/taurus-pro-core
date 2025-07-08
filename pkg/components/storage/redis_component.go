@@ -13,7 +13,7 @@ func ProvideRedisComponent(cfg *config.Config) (*redisx.RedisClient, func(), err
 
 	enable := cfg.GetBool("redis.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	address := cfg.GetStringSlice("redis.address")
@@ -32,7 +32,7 @@ func ProvideRedisComponent(cfg *config.Config) (*redisx.RedisClient, func(), err
 	)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Redis all initialized successfully. %s\n", "\033[32m", "\033[0m")
@@ -52,7 +52,7 @@ var redisWire = &types.Wire{
 
 	enable := cfg.GetBool("redis.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	address := cfg.GetStringSlice("redis.address")
@@ -71,7 +71,7 @@ var redisWire = &types.Wire{
 	)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Redis all initialized successfully. %s\n", "\033[32m", "\033[0m")

@@ -14,7 +14,7 @@ func ProvideDbComponent(cfg *config.Config) (map[string]*gorm.DB, func(), error)
 	enable := cfg.GetBool("databases.enable")
 
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	rawList := cfg.Get("databases.list").([]interface{})
@@ -40,7 +40,7 @@ func ProvideDbComponent(cfg *config.Config) (map[string]*gorm.DB, func(), error)
 
 	err := db.InitDB(options...)
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Database all initialized successfully. %s\n", "\033[32m", "\033[0m")
@@ -62,7 +62,7 @@ var dbWire = &types.Wire{
 	enable := cfg.GetBool("databases.enable")
 
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	rawList := cfg.Get("databases.list").([]interface{})
@@ -88,7 +88,7 @@ var dbWire = &types.Wire{
 
 	err := db.InitDB(options...)
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Database all initialized successfully. %s\n", "\033[32m", "\033[0m")

@@ -29,22 +29,22 @@ var otelWire = &types.Wire{
 
 	enable := cfg.GetBool("otel.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	timeout, err := time.ParseDuration(cfg.GetString("otel.export.timeout"))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	batchTimeout, err := time.ParseDuration(cfg.GetString("otel.batch.timeout"))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	exportTimeout, err := time.ParseDuration(cfg.GetString("otel.batch.export_timeout"))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	provider, cleanup, err := otelemetry.NewOTelProvider(
@@ -67,7 +67,7 @@ var otelWire = &types.Wire{
 
 	if err != nil {
 		log.Printf("%s🔗 -> Initialize otel components failed. %s\n", "\033[31m", "\033[0m")
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Initialize otel components successfully. %s\n", "\033[32m", "\033[0m")
@@ -89,22 +89,22 @@ func ProvideOtelComponent(cfg *config.Config) (*otelemetry.OTelProvider, func(),
 
 	enable := cfg.GetBool("otel.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	timeout, err := time.ParseDuration(cfg.GetString("otel.export.timeout"))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	batchTimeout, err := time.ParseDuration(cfg.GetString("otel.batch.timeout"))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	exportTimeout, err := time.ParseDuration(cfg.GetString("otel.batch.export_timeout"))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	provider, cleanup, err := otelemetry.NewOTelProvider(
@@ -127,7 +127,7 @@ func ProvideOtelComponent(cfg *config.Config) (*otelemetry.OTelProvider, func(),
 
 	if err != nil {
 		log.Printf("%s🔗 -> Initialize otel components failed. %s\n", "\033[31m", "\033[0m")
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	log.Printf("%s🔗 -> Initialize otel components successfully. %s\n", "\033[32m", "\033[0m")

@@ -29,12 +29,12 @@ var tcpWire = &types.Wire{
 	Provider: `func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 	enable := cfg.GetBool("tcp.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	proto, err := protocol.NewProtocol(protocol.WithType(protocol.ProtocolType(cfg.GetString("tcp.protocol"))))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	server, cleanup, err := TCPServer.NewServer(
@@ -50,7 +50,7 @@ var tcpWire = &types.Wire{
 
 	if err != nil {
 		log.Printf("%s🔗 -> Tcp all initialized failed. %s\n", "\033[31m", "\033[0m")
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	go func() {
@@ -75,12 +75,12 @@ var tcpWire = &types.Wire{
 func ProvideTcpComponent(cfg *config.Config) (*TCPServer.Server, func(), error) {
 	enable := cfg.GetBool("tcp.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	proto, err := protocol.NewProtocol(protocol.WithType(protocol.ProtocolType(cfg.GetString("tcp.protocol"))))
 	if err != nil {
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	server, cleanup, err := TCPServer.NewServer(
@@ -96,7 +96,7 @@ func ProvideTcpComponent(cfg *config.Config) (*TCPServer.Server, func(), error) 
 
 	if err != nil {
 		log.Printf("%s🔗 -> Tcp all initialized failed. %s\n", "\033[31m", "\033[0m")
-		return nil, nil, err
+		return nil, func() {}, err
 	}
 
 	go func() {

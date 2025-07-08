@@ -30,14 +30,14 @@ var cronWire = &types.Wire{
 	Provider: `func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 enable := cfg.GetBool("cron.enable")
 if !enable {
-return nil, nil, nil
+return nil, func() {}, nil
 }
 
 location, err := time.LoadLocation(cfg.GetString("cron.location"))
 if err != nil {
 location, err = time.LoadLocation("Asia/Shanghai")
 if err != nil {
-	return nil, nil, err
+	return nil, func() {}, err
 }
 }
 
@@ -63,14 +63,14 @@ log.Printf("%s🔗 -> Clean up cron components successfully. %s\n", "\033[32m", 
 func ProvideCronComponent(cfg *config.Config) (*cron.CronManager, func(), error) {
 	enable := cfg.GetBool("cron.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 
 	location, err := time.LoadLocation(cfg.GetString("cron.location"))
 	if err != nil {
 		location, err = time.LoadLocation("Asia/Shanghai")
 		if err != nil {
-			return nil, nil, err
+			return nil, func() {}, err
 		}
 	}
 
@@ -181,7 +181,7 @@ var templateWire = &types.Wire{
 	Provider: `func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 	enable := cfg.GetBool("templates.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 	rawList := cfg.Get("templates.list").([]interface{})
 	templateOptionsList := make([]map[string]interface{}, len(rawList))
@@ -212,7 +212,7 @@ var templateWire = &types.Wire{
 func ProvideTemplateComponent(cfg *config.Config) (*templates.Manager, func(), error) {
 	enable := cfg.GetBool("templates.enable")
 	if !enable {
-		return nil, nil, nil
+		return nil, func() {}, nil
 	}
 	rawList := cfg.Get("templates.list").([]interface{})
 	templateOptionsList := make([]map[string]interface{}, len(rawList))
