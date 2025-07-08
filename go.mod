@@ -10,7 +10,6 @@ require (
 	github.com/stones-hub/taurus-pro-config v0.0.2
 	github.com/stones-hub/taurus-pro-consul v0.0.1
 	github.com/stones-hub/taurus-pro-grpc v0.0.1
-	github.com/stones-hub/taurus-pro-http v0.0.5
 	github.com/stones-hub/taurus-pro-opentelemetry v0.0.1
 	github.com/stones-hub/taurus-pro-storage v0.0.3
 	github.com/stones-hub/taurus-pro-tcp v0.0.1
@@ -24,6 +23,7 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fatih/color v1.14.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -62,6 +62,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stones-hub/taurus-pro-http v0.0.7 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
