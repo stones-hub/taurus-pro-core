@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	_ "net/http/pprof" // 导入 pprof
 	"os"
 	"os/signal"
 	"syscall"
@@ -109,6 +111,11 @@ func gracefulCleanup(ctx context.Context) {
 // init is automatically called before the main function
 // --env .env.local --config ./config
 func init() {
+	// 启动 pprof 服务
+	go func() {
+		log.Println("启动 pprof 服务在 :6060")
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	// custom usage
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "\n%s\n", Cyan+"==================== Usage ===================="+Reset)
