@@ -46,7 +46,7 @@ func Run() {
 
 	// If signalWaiter returns nil, it means the server is running. But received a signal, so we need to shutdown the server.
 	// Create a deadline to wait for, 5 seconds or cancel() are all called ctx.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Attempt graceful shutdown
