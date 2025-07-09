@@ -57,7 +57,7 @@ func TestMemoryLeak(t *testing.T) {
 	t.Logf("- 堆对象数量: %d", initialStats.HeapObjects)
 
 	// 启动应用
-	cmd := exec.Command("go", "run", "../../../bin/taurus.go")
+	cmd := exec.Command("go", "run", "bin/taurus.go")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {

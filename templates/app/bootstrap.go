@@ -111,11 +111,6 @@ func gracefulCleanup(ctx context.Context) {
 // init is automatically called before the main function
 // --env .env.local --config ./config
 func init() {
-	// 启动 pprof 服务
-	go func() {
-		log.Println("启动 pprof 服务在 :6060")
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 	// custom usage
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "\n%s\n", Cyan+"==================== Usage ===================="+Reset)
@@ -150,6 +145,14 @@ func init() {
 		log.Fatal(err)
 	}
 	cleanups = append(cleanups, cleanup)
+
+	// 启动 pprof 服务
+	if taurus.Container.Config.GetBool("pprof_enabled") {
+		go func() {
+			log.Printf("%s🔗 -> Starting pprof server on :6060 %s\n", Yellow, Reset)
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	}
 
 	// 启动定时任务
 	if err := crontab.StartTasks(); err != nil {
