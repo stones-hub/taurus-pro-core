@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"{{.ProjectName}}/app/crontab"
 	"{{.ProjectName}}/internal/taurus"
 )
 
@@ -142,4 +143,9 @@ func init() {
 		log.Fatal(err)
 	}
 	cleanups = append(cleanups, cleanup)
+
+	// 启动定时任务
+	if err := crontab.StartTasks(); err != nil {
+		log.Printf("%s🔗 -> Cron tasks start failed: %v %s\n", Red, err, Reset)
+	}
 }

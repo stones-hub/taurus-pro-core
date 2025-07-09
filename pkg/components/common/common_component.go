@@ -54,7 +54,7 @@ cm := cron.New(cronOptions...)
 log.Printf("%s🔗 -> Cron all initialized successfully. %s\n", "\033[32m", "\033[0m")
 
 return cm, func() {
-cm.Stop()
+cm.GracefulStop(time.Second * 3)
 log.Printf("%s🔗 -> Clean up cron components successfully. %s\n", "\033[32m", "\033[0m")
 }, nil
 }`,
@@ -87,7 +87,7 @@ func ProvideCronComponent(cfg *config.Config) (*cron.CronManager, func(), error)
 	log.Printf("%s🔗 -> Cron all initialized successfully. %s\n", "\033[32m", "\033[0m")
 
 	return cm, func() {
-		cm.Stop()
+		cm.GracefulStop(time.Second * 3)
 		log.Printf("%s🔗 -> Clean up cron components successfully. %s\n", "\033[32m", "\033[0m")
 	}, nil
 }
