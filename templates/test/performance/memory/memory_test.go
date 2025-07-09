@@ -56,8 +56,21 @@ func TestMemoryLeak(t *testing.T) {
 	t.Logf("- Goroutine数量: %d", initialStats.NumGoroutine)
 	t.Logf("- 堆对象数量: %d", initialStats.HeapObjects)
 
-	// 启动应用
-	cmd := exec.Command("go", "run", "bin/taurus.go")
+	// 获取项目根目录路径
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("获取当前目录失败: %v", err)
+	}
+	projectRoot = projectRoot + "/../../.." // 从 test/performance/memory 回到项目根目录
+
+	// 切换到项目根目录
+	if err := os.Chdir(projectRoot); err != nil {
+		t.Fatalf("切换到项目根目录失败: %v", err)
+	}
+
+	// 启动应用（现在使用相对于项目根目录的路径）
+	cmd := exec.Command("go", "run", "bin/taurus.go", "-c", "config", "-e", ".env.local")
+	cmd.Dir = projectRoot // 显式设置命令的工作目录
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -66,8 +79,22 @@ func TestMemoryLeak(t *testing.T) {
 
 	// 确保程序在测试结束时关闭
 	defer func() {
+		// 首先发送中断信号
+		if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			t.Logf("发送中断信号失败: %v", err)
+		}
+
+		// 给应用一些时间来优雅关闭
+		time.Sleep(2 * time.Second)
+
+		// 如果进程还在运行，则强制终止
 		if err := cmd.Process.Kill(); err != nil {
 			t.Errorf("关闭应用失败: %v", err)
+		}
+
+		// 等待进程完全退出
+		if err := cmd.Wait(); err != nil {
+			t.Logf("等待应用退出: %v", err)
 		}
 	}()
 

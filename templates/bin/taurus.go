@@ -6,16 +6,48 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/stones-hub/taurus-pro-http/pkg/middleware"
-	"github.com/stones-hub/taurus-pro-http/pkg/router"
 	"{{.ProjectName}}/app"
 	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-http/pkg/middleware"
+	"github.com/stones-hub/taurus-pro-http/pkg/router"
 )
 
 func main() {
 	taurus.Container.Http.AddRouter(router.Router{
 		Path:    "/home",
 		Handler: http.HandlerFunc(app.Core.IndexController.Home),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 添加内存测试路由
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/memory/allocate",
+		Handler: http.HandlerFunc(app.Core.MemoryController.AllocateMemory),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/memory/leak",
+		Handler: http.HandlerFunc(app.Core.MemoryController.SimulateMemoryLeak),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/memory/free",
+		Handler: http.HandlerFunc(app.Core.MemoryController.FreeMemory),
 		Middleware: []router.MiddlewareFunc{
 			middleware.RecoveryMiddleware(func(err any, stack string) {
 				fmt.Printf("Error: %v\nStack: %s\n", err, stack)

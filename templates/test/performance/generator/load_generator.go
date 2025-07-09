@@ -2,8 +2,10 @@ package generator
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -40,7 +42,8 @@ func (g *LoadGenerator) Stop() {
 func (g *LoadGenerator) simulateUser(ctx context.Context) {
 	defer g.wg.Done()
 
-	ticker := time.NewTicker(time.Duration(rand.Int63n(1000)) * time.Millisecond)
+	// 确保至少有 100ms 的间隔
+	ticker := time.NewTicker(time.Duration(rand.Int63n(900)+100) * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -59,9 +62,53 @@ func (g *LoadGenerator) simulateUser(ctx context.Context) {
 // simulateOperations 模拟各种操作
 func (g *LoadGenerator) simulateOperations() {
 	operations := []func(){
-		func() { time.Sleep(time.Duration(rand.Int63n(100)) * time.Millisecond) }, // 模拟 API 调用
-		func() { _ = make([]byte, rand.Intn(1024)) },                              // 模拟内存分配
-		func() { log.Printf("模拟日志输出 %d", rand.Int()) },                            // 模拟日志输出
+		// 调用首页API
+		func() {
+			resp, err := http.Get("http://localhost:9080/")
+			if err != nil {
+				log.Printf("调用首页API失败: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+			log.Printf("调用首页API成功")
+		},
+
+		// 测试内存分配
+		func() {
+			size := rand.Intn(10) + 1 // 1-10MB
+			resp, err := http.Get(fmt.Sprintf("http://localhost:9080/memory/allocate?size=%d", size))
+			if err != nil {
+				log.Printf("内存分配测试失败: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+			log.Printf("内存分配测试成功")
+		},
+
+		// 测试内存泄漏
+		func() {
+			count := rand.Intn(1000) + 100 // 100-1100个对象
+			resp, err := http.Get(fmt.Sprintf("http://localhost:9080/memory/leak?count=%d", count))
+			if err != nil {
+				log.Printf("内存泄漏测试失败: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+			log.Printf("内存泄漏测试成功")
+		},
+
+		// 偶尔释放内存（模拟GC）
+		func() {
+			if rand.Float32() < 0.1 { // 10%的概率执行释放
+				resp, err := http.Get("http://localhost:9080/memory/free")
+				if err != nil {
+					log.Printf("内存释放失败: %v", err)
+					return
+				}
+				defer resp.Body.Close()
+				log.Printf("内存释放成功")
+			}
+		},
 	}
 
 	op := operations[rand.Intn(len(operations))]
