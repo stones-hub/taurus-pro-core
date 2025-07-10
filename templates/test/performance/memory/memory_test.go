@@ -1,12 +1,15 @@
 package memory
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"testing"
 	"time"
 
@@ -68,33 +71,87 @@ func TestMemoryLeak(t *testing.T) {
 		t.Fatalf("切换到项目根目录失败: %v", err)
 	}
 
-	// 启动应用（现在使用相对于项目根目录的路径）
+	// 创建临时目录用于存储堆快照
+	snapshotDir, err := os.MkdirTemp("", "heap_snapshots")
+	if err != nil {
+		t.Fatalf("创建临时目录失败: %v", err)
+	}
+	defer os.RemoveAll(snapshotDir) // 清理临时目录
+
+	// 启动应用
 	cmd := exec.Command("go", "run", "bin/taurus.go", "-c", "config", "-e", ".env.local")
-	cmd.Dir = projectRoot // 显式设置命令的工作目录
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Dir = projectRoot
+
+	// 使用管道而不是直接重定向
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("创建stdout管道失败: %v", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		t.Fatalf("创建stderr管道失败: %v", err)
+	}
+
+	// 启动进程
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("启动应用失败: %v", err)
 	}
 
+	// 创建WaitGroup来等待所有goroutine完成
+	var wg sync.WaitGroup
+
+	// 处理输出
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			t.Log("APP stdout:", scanner.Text())
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			t.Log("APP stderr:", scanner.Text())
+		}
+	}()
+
 	// 确保程序在测试结束时关闭
 	defer func() {
-		// 首先发送中断信号
+		// 首先尝试优雅关闭
 		if err := cmd.Process.Signal(os.Interrupt); err != nil {
 			t.Logf("发送中断信号失败: %v", err)
 		}
 
-		// 给应用一些时间来优雅关闭
-		time.Sleep(2 * time.Second)
+		// 使用channel来控制超时
+		done := make(chan error, 1)
+		go func() {
+			done <- cmd.Wait()
+		}()
 
-		// 如果进程还在运行，则强制终止
-		if err := cmd.Process.Kill(); err != nil {
-			t.Errorf("关闭应用失败: %v", err)
+		// 等待进程退出，设置超时
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Logf("进程退出: %v", err)
+			}
+		case <-time.After(30 * time.Second):
+			t.Log("等待进程退出超时，强制终止")
+			if err := cmd.Process.Kill(); err != nil {
+				t.Errorf("强制终止进程失败: %v", err)
+			}
 		}
 
-		// 等待进程完全退出
-		if err := cmd.Wait(); err != nil {
-			t.Logf("等待应用退出: %v", err)
+		// 等待所有输出处理完成
+		wg.Wait()
+
+		// 清理堆快照文件
+		files, err := filepath.Glob(filepath.Join(snapshotDir, "heap_*.prof"))
+		if err == nil {
+			for _, f := range files {
+				os.Remove(f)
+			}
 		}
 	}()
 
@@ -102,7 +159,7 @@ func TestMemoryLeak(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// 创建上下文和负载生成器
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	g := generator.NewLoadGenerator()
@@ -201,10 +258,12 @@ func TestMemoryLeak(t *testing.T) {
 			}
 
 			// 获取堆快照
-			snapshotFile := fmt.Sprintf("heap_%s.prof", time.Now().Format("150405"))
-			if err := exec.Command("go", "tool", "pprof", "-proto",
+			snapshotFile := filepath.Join(snapshotDir, fmt.Sprintf("heap_%s.prof", time.Now().Format("150405")))
+			heapCmd := exec.Command("go", "tool", "pprof", "-proto",
 				"http://localhost:6060/debug/pprof/heap",
-				snapshotFile).Run(); err != nil {
+				snapshotFile)
+
+			if err := heapCmd.Run(); err != nil {
 				t.Logf("获取堆快照失败: %v", err)
 			}
 		}
