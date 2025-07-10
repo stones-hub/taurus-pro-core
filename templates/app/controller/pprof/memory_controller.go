@@ -1,4 +1,4 @@
-package controller
+package pprof
 
 import (
 	"net/http"

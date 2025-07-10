@@ -14,6 +14,8 @@ import (
 )
 
 func main() {
+	pprof()
+
 	taurus.Container.Http.AddRouter(router.Router{
 		Path:    "/home",
 		Handler: http.HandlerFunc(app.Core.IndexController.Home),
@@ -24,6 +26,27 @@ func main() {
 		},
 	})
 
+	taurus.Container.Http.AddRouter(router.Router{
+		Path: "/health",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("health"))
+		}),
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path: "/health1",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("health1"))
+		}),
+	})
+
+	app.Run()
+}
+
+// pprof 路由, 用于测试内存泄漏
+func pprof() {
 	// 添加内存测试路由
 	taurus.Container.Http.AddRouter(router.Router{
 		Path:    "/memory/allocate",
@@ -54,22 +77,4 @@ func main() {
 			}),
 		},
 	})
-
-	taurus.Container.Http.AddRouter(router.Router{
-		Path: "/health",
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("health"))
-		}),
-	})
-
-	taurus.Container.Http.AddRouter(router.Router{
-		Path: "/health1",
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("health1"))
-		}),
-	})
-
-	app.Run()
 }
