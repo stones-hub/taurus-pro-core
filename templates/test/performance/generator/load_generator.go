@@ -70,7 +70,6 @@ func (g *LoadGenerator) simulateOperations() {
 				return
 			}
 			defer resp.Body.Close()
-			log.Printf("调用首页API成功")
 		},
 
 		// 测试内存分配
@@ -82,7 +81,6 @@ func (g *LoadGenerator) simulateOperations() {
 				return
 			}
 			defer resp.Body.Close()
-			log.Printf("内存分配测试成功")
 		},
 
 		// 测试内存泄漏
@@ -94,7 +92,6 @@ func (g *LoadGenerator) simulateOperations() {
 				return
 			}
 			defer resp.Body.Close()
-			log.Printf("内存泄漏测试成功")
 		},
 
 		// 偶尔释放内存（模拟GC）
@@ -106,7 +103,6 @@ func (g *LoadGenerator) simulateOperations() {
 					return
 				}
 				defer resp.Body.Close()
-				log.Printf("内存释放成功")
 			}
 		},
 	}

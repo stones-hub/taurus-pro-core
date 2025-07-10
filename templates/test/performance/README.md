@@ -19,7 +19,8 @@ performance/
 
 1. 启动测试：
 ```bash
-go test -v ./test/performance/memory -run TestMemoryLeak
+go test -v ./test/performance/memory -run TestMemoryLeak count=1
+go test -v ./test/performance/profile -run TestSystemProfile count=1
 ```
 
 2. 查看实时内存使用：
