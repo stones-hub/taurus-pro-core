@@ -100,7 +100,7 @@ func TestMemoryLeak(t *testing.T) {
 	}
 
 	// 等待应用启动
-	if err := waitForAppReady(t, 30*time.Second); err != nil {
+	if err := waitForAppReady(30 * time.Second); err != nil {
 		t.Fatalf("等待应用启动失败: %v", err)
 	}
 
@@ -253,7 +253,7 @@ func TestMemoryLeak(t *testing.T) {
 }
 
 // 实现健康检查
-func waitForAppReady(t *testing.T, timeout time.Duration) error {
+func waitForAppReady(timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		// 尝试连接应用健康检查接口
