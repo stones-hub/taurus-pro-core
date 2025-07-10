@@ -8,7 +8,7 @@ import (
 	"net/http"
 	_ "net/http/pprof" // 导入 pprof
 	"os"
-	"os/signal"
+	"os/signal" // 导入 sync 包
 	"syscall"
 	"time"
 
@@ -69,16 +69,19 @@ func signalWaiter(errCh chan error) error {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, signalToNotify...)
 
+	log.Printf("%s🔗 -> Waiting for signals: %v %s\n", Yellow, signalToNotify, Reset)
+
 	// Block until a signal is received or an error is returned
 	select {
 	case sig := <-signals:
 		switch sig {
 		case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM:
-			log.Printf("%s🔗 -> Received signal: %s, graceful shutdown... %s\n", Yellow, sig, Reset)
-			// graceful shutdown
+			log.Printf("%s🔗 -> Received signal: %s, starting graceful shutdown... %s\n", Yellow, sig, Reset)
+			signal.Stop(signals) // 停止接收新的信号
 			return nil
 		}
 	case err := <-errCh:
+		log.Printf("%s🔗 -> Received error: %v, starting shutdown... %s\n", Red, err, Reset)
 		return err
 	}
 
@@ -92,18 +95,20 @@ func gracefulCleanup(ctx context.Context) {
 	done := make(chan struct{})
 
 	go func() {
+		log.Printf("%s🔗 -> Running cleanup functions... %s\n", Yellow, Reset)
 		for _, cleanup := range cleanups {
 			cleanup()
 		}
-		done <- struct{}{}
+		log.Printf("%s🔗 -> All cleanup functions completed %s\n", Green, Reset)
+		close(done)
 	}()
 
 	select {
 	case <-done:
-		log.Printf("%s🔗 -> Server stopped successfully. %s\n", Green, Reset)
+		log.Printf("%s🔗 -> Cleanup completed successfully. %s\n", Green, Reset)
 	case <-ctx.Done():
-		// If 5 seconds have passed and the server has not stopped, it means the server is not responding, so we need to force it to stop.
-		log.Printf("%s🔗 -> Server stopped forcefully. %s\n", Red, Reset)
+		// If context timeout has passed and the server has not stopped
+		log.Printf("%s🔗 -> Cleanup timeout reached, forcing stop. %s\n", Red, Reset)
 	}
 }
 
@@ -145,6 +150,7 @@ func init() {
 	}
 	cleanups = append(cleanups, cleanup)
 
+	// 启动 pprof 服务
 	startPprofServer()
 
 	// 启动定时任务
@@ -153,7 +159,6 @@ func init() {
 	}
 }
 
-// 启动 pprof 服务
 func startPprofServer() {
 	// 启动 pprof 服务
 	if taurus.Container.Config.GetBool("pprof_enabled") {
@@ -165,7 +170,7 @@ func startPprofServer() {
 		go func() {
 			log.Printf("%s🔗 -> Starting pprof server on :6060 %s\n", Yellow, Reset)
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Printf("%s🔗 -> Pprof server error: %v %s\n", Red, err, Reset)
+				log.Printf("%s🔗 -> pprof server error: %v %s\n", Red, err, Reset)
 			}
 		}()
 
@@ -176,9 +181,9 @@ func startPprofServer() {
 			defer cancel()
 
 			if err := server.Shutdown(ctx); err != nil {
-				log.Printf("%s🔗 -> Pprof server forced to shutdown: %v %s\n", Red, err, Reset)
+				log.Printf("%s🔗 -> pprof server forced to shutdown: %v %s\n", Red, err, Reset)
 			} else {
-				log.Printf("%s🔗 -> Pprof server shutdown successfully %s\n", Green, Reset)
+				log.Printf("%s🔗 -> pprof server shutdown successfully %s\n", Green, Reset)
 			}
 		})
 	}

@@ -1,15 +1,14 @@
 package memory
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"sync"
 	"testing"
 	"time"
 
@@ -78,44 +77,32 @@ func TestMemoryLeak(t *testing.T) {
 	}
 	defer os.RemoveAll(snapshotDir) // 清理临时目录
 
-	// 启动应用
-	cmd := exec.Command("go", "run", "bin/taurus.go", "-c", "config", "-e", ".env.local")
+	// 使用 make build 编译程序
+	buildCmd := exec.Command("make", "build")
+	buildCmd.Dir = projectRoot // 设置工作目录为项目根目录
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("编译程序失败: %v", err)
+	}
+
+	// 运行编译后的程序
+	cmd := exec.Command("./build/taurus", "-c", "config", "-e", ".env.local")
 	cmd.Dir = projectRoot
 
-	// 使用管道而不是直接重定向
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatalf("创建stdout管道失败: %v", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		t.Fatalf("创建stderr管道失败: %v", err)
-	}
+	// 直接重定向到标准输出和标准错误
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	// 启动进程
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("启动应用失败: %v", err)
 	}
 
-	// 创建WaitGroup来等待所有goroutine完成
-	var wg sync.WaitGroup
-
-	// 处理输出
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			t.Log("APP stdout:", scanner.Text())
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			t.Log("APP stderr:", scanner.Text())
-		}
-	}()
+	// 等待应用启动
+	if err := waitForAppReady(t, 30*time.Second); err != nil {
+		t.Fatalf("等待应用启动失败: %v", err)
+	}
 
 	// 确保程序在测试结束时关闭
 	defer func() {
@@ -127,6 +114,7 @@ func TestMemoryLeak(t *testing.T) {
 		// 使用channel来控制超时
 		done := make(chan error, 1)
 		go func() {
+			// 当进程退出以后，会返回一个错误，给done赋值
 			done <- cmd.Wait()
 		}()
 
@@ -143,9 +131,6 @@ func TestMemoryLeak(t *testing.T) {
 			}
 		}
 
-		// 等待所有输出处理完成
-		wg.Wait()
-
 		// 清理堆快照文件
 		files, err := filepath.Glob(filepath.Join(snapshotDir, "heap_*.prof"))
 		if err == nil {
@@ -155,11 +140,8 @@ func TestMemoryLeak(t *testing.T) {
 		}
 	}()
 
-	// 等待应用启动
-	time.Sleep(3 * time.Second)
-
 	// 创建上下文和负载生成器
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	g := generator.NewLoadGenerator()
@@ -268,4 +250,18 @@ func TestMemoryLeak(t *testing.T) {
 			}
 		}
 	}
+}
+
+// 实现健康检查
+func waitForAppReady(t *testing.T, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		// 尝试连接应用健康检查接口
+		resp, err := http.Get("http://localhost:9080/health")
+		if err == nil && resp.StatusCode == http.StatusOK {
+			return nil
+		}
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("应用未在%v内启动完成", timeout)
 }
