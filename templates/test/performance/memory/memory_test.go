@@ -141,7 +141,7 @@ func TestMemoryLeak(t *testing.T) {
 	}()
 
 	// 创建上下文和负载生成器
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	g := generator.NewLoadGenerator()
