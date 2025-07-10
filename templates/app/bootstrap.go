@@ -32,7 +32,6 @@ var (
 	configPath = "./config"
 	Core       *Injector
 	cleanups   []func()
-	err        error
 )
 
 func Run() {
@@ -146,16 +145,42 @@ func init() {
 	}
 	cleanups = append(cleanups, cleanup)
 
-	// 启动 pprof 服务
-	if taurus.Container.Config.GetBool("pprof_enabled") {
-		go func() {
-			log.Printf("%s🔗 -> Starting pprof server on :6060 %s\n", Yellow, Reset)
-			log.Println(http.ListenAndServe("localhost:6060", nil))
-		}()
-	}
+	startPprofServer()
 
 	// 启动定时任务
 	if err := crontab.StartTasks(); err != nil {
 		log.Printf("%s🔗 -> Cron tasks start failed: %v %s\n", Red, err, Reset)
 	}
+}
+
+// 启动 pprof 服务
+func startPprofServer() {
+	// 启动 pprof 服务
+	if taurus.Container.Config.GetBool("pprof_enabled") {
+		server := &http.Server{
+			Addr:    "localhost:6060",
+			Handler: nil,
+		}
+
+		go func() {
+			log.Printf("%s🔗 -> Starting pprof server on :6060 %s\n", Yellow, Reset)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("%s🔗 -> Pprof server error: %v %s\n", Red, err, Reset)
+			}
+		}()
+
+		// 添加pprof服务器的清理函数
+		cleanups = append(cleanups, func() {
+			log.Printf("%s🔗 -> Shutting down pprof server... %s\n", Yellow, Reset)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			if err := server.Shutdown(ctx); err != nil {
+				log.Printf("%s🔗 -> Pprof server forced to shutdown: %v %s\n", Red, err, Reset)
+			} else {
+				log.Printf("%s🔗 -> Pprof server shutdown successfully %s\n", Green, Reset)
+			}
+		})
+	}
+
 }
