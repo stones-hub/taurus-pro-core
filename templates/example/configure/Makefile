@@ -76,7 +76,11 @@ all: build
 wire:
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(BLUE)Generating wire code...$(RESET)"
+	# 生成 app 目录的 wire 扫描工具
+	@go build -o ./scripts/wire/gen_wire ./internal/wire/gen_wire.go
+	# 扫描 app 目录下的 provider set ，并生成 wire.go 文件
 	@./scripts/wire/gen_wire -project-root $(PWD)
+	# 生成 wire_gen.go 文件
 	@wire ./internal/taurus/wire.go
 	@echo -e "$(GREEN)Wire code generated.$(RESET)"
 	@echo -e "$(SEPARATOR)"
