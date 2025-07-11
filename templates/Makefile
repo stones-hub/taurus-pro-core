@@ -69,7 +69,7 @@ RELEASE_FILE_NAME := $(APP_NAME)-$(VERSION)
 PACKAGE_DIR := $(RELEASE_DIR)/$(RELEASE_FILE_NAME)
 
 # ---------------------------- 构建目标 --------------------------------
-.PHONY: all build clean docker-run docker-stop local-run local-stop docker-compose-up docker-compose-down docker-compose-start docker-compose-stop docker-image-push docker-swarm-up docker-swarm-down docker-update-app docker-swarm-deploy-app local-release wire run 
+.PHONY: all build clean docker-run docker-stop local-run local-stop docker-compose-up docker-compose-down docker-compose-start docker-compose-stop docker-image-push docker-swarm-up docker-swarm-down docker-update-app docker-swarm-deploy-app local-release local-release-start local-release-stop local-release-logs local-release-status local-release-restart wire run 
 # Default target
 all: build
 
@@ -141,17 +141,77 @@ local-release: clean build
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(BLUE)Packaging the application...$(RESET)"
 	@mkdir -p $(PACKAGE_DIR)
+	
+	# 复制可执行文件
 	@cp $(BUILD_DIR)/$(APP_NAME) $(PACKAGE_DIR)/
+	
+	# 复制环境配置文件
 	@cp $(env_file) $(PACKAGE_DIR)/.env.local
+	
+	# 创建必要的目录
 	@mkdir -p $(PACKAGE_DIR)/logs
 	@mkdir -p $(PACKAGE_DIR)/downloads
+	
+	# 复制配置和模板目录
+	@cp -r config $(PACKAGE_DIR)/
 	@cp -r templates $(PACKAGE_DIR)/
 	@cp -r static $(PACKAGE_DIR)/
-	@cp -r config $(PACKAGE_DIR)/
+	
+	# 复制文档和脚本
+	@cp -r docs $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)docs directory not found, skipping...$(RESET)"
+	@cp -r scripts $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)scripts directory not found, skipping...$(RESET)"
+	
+	# 复制测试和基准测试目录（用于生产环境验证）
+	@cp -r test $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)test directory not found, skipping...$(RESET)"
+	@cp -r benchmark $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)benchmark directory not found, skipping...$(RESET)"
+	
+	# 复制示例配置
+	@cp -r example $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)example directory not found, skipping...$(RESET)"
+	
+	# 复制重要的根目录文件
+	@cp Makefile $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)Makefile not found, skipping...$(RESET)"
+	@cp README.md $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)README.md not found, skipping...$(RESET)"
+	@cp LICENSE $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)LICENSE not found, skipping...$(RESET)"
+	@cp Dockerfile $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)Dockerfile not found, skipping...$(RESET)"
+	@cp docker-compose.yml $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)docker-compose.yml not found, skipping...$(RESET)"
+	@cp docker-compose-swarm.yml $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW)docker-compose-swarm.yml not found, skipping...$(RESET)"
+	@cp .dockerignore $(PACKAGE_DIR)/ 2>/dev/null || echo -e "$(YELLOW).dockerignore not found, skipping...$(RESET)"
 	@echo -e "$(GREEN)Package created at $(PACKAGE_DIR)$(RESET)"
 	@echo -e "$(BLUE)Creating release archive...$(RESET)"
 	@cd $(RELEASE_DIR) && tar -czf $(RELEASE_FILE_NAME).tar.gz $(RELEASE_FILE_NAME)
 	@echo -e "$(GREEN)Release archive created at $(RELEASE_FILE_NAME).tar.gz$(RESET)"
+	@echo -e "$(SEPARATOR)"
+
+
+# 发布包后的项目启动
+local-release-start:
+	@echo -e "$(SEPARATOR)"
+	@echo -e "$(BLUE)Starting the application from release package...$(RESET)"
+	@mkdir -p logs
+	@nohup ./$(APP_NAME) -config=$(APP_CONFIG) -env=$(env_file)  > logs/app.log 2>&1 & echo $$! > logs/app.pid
+	@echo -e "$(GREEN)Application started from release package. PID: $$(cat logs/app.pid)$(RESET)"
+	@echo -e "$(GREEN)Log file: logs/app.log$(RESET)"
+	@echo -e "$(BLUE)To view logs: tail -f logs/app.log$(RESET)"
+	@echo -e "$(BLUE)To stop: make local-release-stop$(RESET)"
+	@echo -e "$(SEPARATOR)"
+
+# 发布包后的项目停止
+local-release-stop:
+	@echo -e "$(SEPARATOR)"
+	@echo -e "$(YELLOW)Stopping the application from release package...$(RESET)"
+	@if [ -f "logs/app.pid" ]; then \
+		PID=$$(cat logs/app.pid); \
+		if kill -0 $$PID 2>/dev/null; then \
+			kill $$PID; \
+			echo -e "$(GREEN)Application (PID: $$PID) stopped.$(RESET)"; \
+		else \
+			echo -e "$(YELLOW)Application (PID: $$PID) is not running.$(RESET)"; \
+		fi; \
+		rm -f logs/app.pid; \
+	else \
+		pkill -f "$(APP_NAME)" || echo -e "$(RED)No application from release package is running.$(RESET)"; \
+	fi
+	@echo -e "$(GREEN)Application from release package stopped.$(RESET)"
 	@echo -e "$(SEPARATOR)"
 
 # Build the Docker image
