@@ -37,9 +37,9 @@ func (c *MemoryController) AllocateMemory(w http.ResponseWriter, r *http.Request
 
 	size, err := strconv.Atoi(sizeStr)
 	if err != nil {
-		httpx.SendResponse(w, http.StatusBadRequest, nil, map[string]string{
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]interface{}{
 			"error": err.Error(),
-		})
+		}, nil)
 		return
 	}
 
@@ -63,9 +63,9 @@ func (c *MemoryController) SimulateMemoryLeak(w http.ResponseWriter, r *http.Req
 
 	count, err := strconv.Atoi(countStr)
 	if err != nil {
-		httpx.SendResponse(w, http.StatusBadRequest, nil, map[string]string{
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]interface{}{
 			"error": err.Error(),
-		})
+		}, nil)
 		return
 	}
 
