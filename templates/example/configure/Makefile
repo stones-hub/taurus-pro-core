@@ -105,18 +105,34 @@ clean:
 	@echo -e "$(GREEN)Clean complete.$(RESET)"
 	@echo -e "$(SEPARATOR)"
 
-# Run the application locally
+# Run the application locally in background with log file
 local-run: clean build
 	@echo -e "$(SEPARATOR)"
-	@echo -e "$(BLUE)Running the application locally...$(RESET)"
-	@$(BUILD_DIR)/$(APP_NAME) -config=$(APP_CONFIG) -env=$(env_file) || echo -e "$(RED)Failed to run the application locally.$(RESET)"
+	@echo -e "$(BLUE)Running the application locally in background...$(RESET)"
+	@mkdir -p logs
+	@nohup $(BUILD_DIR)/$(APP_NAME) -config=$(APP_CONFIG) -env=$(env_file) > logs/app.log 2>&1 & echo $$! > logs/app.pid
+	@echo -e "$(GREEN)Application started in background. PID: $$(cat logs/app.pid)$(RESET)"
+	@echo -e "$(GREEN)Log file: logs/app.log$(RESET)"
+	@echo -e "$(BLUE)To view logs: tail -f logs/app.log$(RESET)"
+	@echo -e "$(BLUE)To stop: make local-stop$(RESET)"
 	@echo -e "$(SEPARATOR)"
 
 # Stop the local application (if running in the background)
 local-stop:
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(YELLOW)Stopping the local application...$(RESET)"
-	@pkill -f "$(BUILD_DIR)/$(APP_NAME)" || echo -e "$(RED)No local application is running.$(RESET)"
+	@if [ -f logs/app.pid ]; then \
+		PID=$$(cat logs/app.pid); \
+		if kill -0 $$PID 2>/dev/null; then \
+			kill $$PID; \
+			echo -e "$(GREEN)Application (PID: $$PID) stopped.$(RESET)"; \
+		else \
+			echo -e "$(YELLOW)Application (PID: $$PID) is not running.$(RESET)"; \
+		fi; \
+		rm -f logs/app.pid; \
+	else \
+		pkill -f "$(BUILD_DIR)/$(APP_NAME)" || echo -e "$(RED)No local application is running.$(RESET)"; \
+	fi
 	@echo -e "$(GREEN)Local application stopped.$(RESET)"
 	@echo -e "$(SEPARATOR)"
 
