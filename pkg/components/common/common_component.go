@@ -14,7 +14,7 @@ import (
 var CommonComponent = types.Component{
 	Name:         "common",
 	Package:      "github.com/stones-hub/taurus-pro-common",
-	Version:      "v0.0.10",
+	Version:      "v0.1.0",
 	Description:  "通用基础组件，包含定时任务、日志、模板工具等",
 	IsCustom:     true,
 	Required:     true,

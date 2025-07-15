@@ -6,7 +6,7 @@ import "github.com/stones-hub/taurus-pro-core/pkg/components/types"
 var ConfigComponent = types.Component{
 	Name:        "config",
 	Package:     "github.com/stones-hub/taurus-pro-config",
-	Version:     "v0.0.2",
+	Version:     "v0.0.3",
 	Description: "配置管理组件",
 	IsCustom:    true,
 	Required:    true,

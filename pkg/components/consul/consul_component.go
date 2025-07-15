@@ -12,7 +12,7 @@ import (
 var ConsulComponent = types.Component{
 	Name:         "consul",
 	Package:      "github.com/stones-hub/taurus-pro-consul",
-	Version:      "v0.0.1",
+	Version:      "v0.1.1",
 	Description:  "consul组件",
 	IsCustom:     true,
 	Required:     false,

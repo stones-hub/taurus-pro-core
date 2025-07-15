@@ -81,6 +81,11 @@ func (g *ProjectGenerator) copyTemplateFiles() error {
 
 		targetPath := filepath.Join(g.projectPath, relPath)
 
+		// 如果是 .gotmpl 文件，目标文件名改为 .go
+		if strings.HasSuffix(targetPath, ".gotmpl") {
+			targetPath = strings.TrimSuffix(targetPath, ".gotmpl") + ".go"
+		}
+
 		if info.IsDir() {
 			return os.MkdirAll(targetPath, info.Mode())
 		}
