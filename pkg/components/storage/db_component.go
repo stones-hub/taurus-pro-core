@@ -8,6 +8,7 @@ import (
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
 	"github.com/stones-hub/taurus-pro-storage/pkg/db"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func ProvideDbComponent(cfg *config.Config) (map[string]*gorm.DB, func(), error) {
@@ -23,24 +24,23 @@ func ProvideDbComponent(cfg *config.Config) (map[string]*gorm.DB, func(), error)
 		dbOptionsList[i] = raw.(map[string]interface{})
 	}
 
-	options := make([]db.DbOptions, 0)
 	for _, dbOptions := range dbOptionsList {
-		options = append(options, db.NewDbOptions(
-			dbOptions["dbname"].(string),
-			dbOptions["dbtype"].(string),
-			dbOptions["dsn"].(string),
-			db.WithMaxOpenConns(dbOptions["max_open_conns"].(int)),
+		err := db.InitDB(db.WithMaxOpenConns(dbOptions["max_open_conns"].(int)),
 			db.WithMaxIdleConns(dbOptions["max_idle_conns"].(int)),
 			db.WithConnMaxLifetime(time.Duration(dbOptions["conn_max_lifetime"].(int))*time.Second),
 			db.WithMaxRetries(dbOptions["max_retries"].(int)),
 			db.WithRetryDelay(dbOptions["retry_delay"].(int)),
-			db.WithLoggerName(dbOptions["logger_name"].(string)),
-		))
-	}
-
-	err := db.InitDB(options...)
-	if err != nil {
-		return nil, func() {}, err
+			db.WithDBName(dbOptions["dbname"].(string)),
+			db.WithDBType(dbOptions["dbtype"].(string)),
+			db.WithDSN(dbOptions["dsn"].(string)),
+			db.WithLogger(db.NewDbLogger(
+				db.WithLogFilePath("./logs/db/db.log"),
+				db.WithLogLevel(logger.Info),
+				db.WithLogFormatter(db.JSONLogFormatter))),
+		)
+		if err != nil {
+			return nil, func() {}, err
+		}
 	}
 
 	log.Printf("%s🔗 -> Database all initialized successfully. %s\n", "\033[32m", "\033[0m")
@@ -53,7 +53,7 @@ func ProvideDbComponent(cfg *config.Config) (map[string]*gorm.DB, func(), error)
 }
 
 var dbWire = &types.Wire{
-	RequirePath:  []string{"github.com/stones-hub/taurus-pro-storage/pkg/db", "gorm.io/gorm", "log"},
+	RequirePath:  []string{"github.com/stones-hub/taurus-pro-storage/pkg/db", "gorm.io/gorm", "gorm.io/gorm/logger", "log"},
 	Name:         "DbList",
 	Type:         "map[string]*gorm.DB",
 	ProviderName: "ProvideDbComponent",
@@ -71,24 +71,23 @@ var dbWire = &types.Wire{
 		dbOptionsList[i] = raw.(map[string]interface{})
 	}
 
-	options := make([]db.DbOptions, 0)
 	for _, dbOptions := range dbOptionsList {
-		options = append(options, db.NewDbOptions(
-			dbOptions["dbname"].(string),
-			dbOptions["dbtype"].(string),
-			dbOptions["dsn"].(string),
-			db.WithMaxOpenConns(dbOptions["max_open_conns"].(int)),
+		err := db.InitDB(db.WithMaxOpenConns(dbOptions["max_open_conns"].(int)),
 			db.WithMaxIdleConns(dbOptions["max_idle_conns"].(int)),
 			db.WithConnMaxLifetime(time.Duration(dbOptions["conn_max_lifetime"].(int))*time.Second),
 			db.WithMaxRetries(dbOptions["max_retries"].(int)),
 			db.WithRetryDelay(dbOptions["retry_delay"].(int)),
-			db.WithLoggerName(dbOptions["logger_name"].(string)),
-		))
-	}
-
-	err := db.InitDB(options...)
-	if err != nil {
-		return nil, func() {}, err
+			db.WithDBName(dbOptions["dbname"].(string)),
+			db.WithDBType(dbOptions["dbtype"].(string)),
+			db.WithDSN(dbOptions["dsn"].(string)),
+			db.WithLogger(db.NewDbLogger(
+				db.WithLogFilePath("./logs/db/db.log"),
+				db.WithLogLevel(logger.Info),
+				db.WithLogFormatter(db.JSONLogFormatter))),
+		)
+		if err != nil {
+			return nil, func() {}, err
+		}
 	}
 
 	log.Printf("%s🔗 -> Database all initialized successfully. %s\n", "\033[32m", "\033[0m")

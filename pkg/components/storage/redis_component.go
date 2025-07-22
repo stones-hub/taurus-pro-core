@@ -18,7 +18,16 @@ func ProvideRedisComponent(cfg *config.Config) (*redisx.RedisClient, func(), err
 
 	address := cfg.GetStringSlice("redis.address")
 
-	err := redisx.InitRedis(
+	logger, err := redisx.NewRedisLogger(
+		redisx.WithLogFilePath("./logs/redis/redis.log"),
+		redisx.WithLogLevel(redisx.LogLevelInfo),
+		redisx.WithLogFormatter(redisx.JSONLogFormatter),
+	)
+	if err != nil {
+		return nil, func() {}, err
+	}
+
+	err = redisx.InitRedis(
 		redisx.WithAddrs(address...),
 		redisx.WithPassword(cfg.GetString("redis.password")),
 		redisx.WithDB(cfg.GetInt("redis.db")),
@@ -29,6 +38,7 @@ func ProvideRedisComponent(cfg *config.Config) (*redisx.RedisClient, func(), err
 			time.Duration(cfg.GetInt("redis.read_timeout"))*time.Second,
 			time.Duration(cfg.GetInt("redis.write_timeout"))*time.Second),
 		redisx.WithMaxRetries(cfg.GetInt("redis.max_retries")),
+		redisx.WithLogging(logger),
 	)
 
 	if err != nil {
@@ -57,7 +67,16 @@ var redisWire = &types.Wire{
 
 	address := cfg.GetStringSlice("redis.address")
 
-	err := redisx.InitRedis(
+	logger, err := redisx.NewRedisLogger(
+		redisx.WithLogFilePath("./logs/redis/redis.log"),
+		redisx.WithLogLevel(redisx.LogLevelInfo),
+		redisx.WithLogFormatter(redisx.JSONLogFormatter),
+	)
+	if err != nil {
+		return nil, func() {}, err
+	}
+
+	err = redisx.InitRedis(
 		redisx.WithAddrs(address...),
 		redisx.WithPassword(cfg.GetString("redis.password")),
 		redisx.WithDB(cfg.GetInt("redis.db")),
@@ -68,6 +87,7 @@ var redisWire = &types.Wire{
 			time.Duration(cfg.GetInt("redis.read_timeout"))*time.Second,
 			time.Duration(cfg.GetInt("redis.write_timeout"))*time.Second),
 		redisx.WithMaxRetries(cfg.GetInt("redis.max_retries")),
+		redisx.WithLogging(logger),
 	)
 
 	if err != nil {
@@ -80,5 +100,6 @@ var redisWire = &types.Wire{
 		redisx.Redis.Close()
 		log.Printf("%s🔗 -> Clean up redis components successfully. %s\n", "\033[32m", "\033[0m")
 	}, nil
+	
 }`,
 }

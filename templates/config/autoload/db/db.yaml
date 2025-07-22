@@ -9,7 +9,6 @@ databases:
       conn_max_lifetime: 300                  # 连接最大生命周期 秒 
       max_retries: 10                         # 最大重试次数
       retry_delay: 15                         # 重试延迟时间 秒
-      logger_name: "kf_ai_demo"               # 日志名称
 
     - dbname: "kf_ai_test"
       dbtype: "mysql"
@@ -19,4 +18,3 @@ databases:
       conn_max_lifetime: 300                  # 连接最大生命周期 秒
       max_retries: 10                         # 最大重试次数
       retry_delay: 15                         # 重试延迟时间 秒
-      logger_name: "kf_ai_test"               # 日志名称

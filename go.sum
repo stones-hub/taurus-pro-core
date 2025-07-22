@@ -284,6 +284,8 @@ github.com/stones-hub/taurus-pro-opentelemetry v0.0.1 h1:OQzO6/r32aubrv7/Cqgja/J
 github.com/stones-hub/taurus-pro-opentelemetry v0.0.1/go.mod h1:sw+jTrQTMcirAO1L0bgv/tPLRt3B47JthBbOzR3pl4c=
 github.com/stones-hub/taurus-pro-storage v0.0.4 h1:Tur+/TNYVLc6ySj4XKFQtpljXYnlGFf2NzKRTITKgRw=
 github.com/stones-hub/taurus-pro-storage v0.0.4/go.mod h1:pvyX14GHEts1wMB88imWI1vlnbDC8mmL7r4qZ0ClNnw=
+github.com/stones-hub/taurus-pro-storage v0.0.5 h1:ZMy7tgTF2wEz7yqFfnPfd6UIVJmwZHi1pNomWpPgda4=
+github.com/stones-hub/taurus-pro-storage v0.0.5/go.mod h1:pvyX14GHEts1wMB88imWI1vlnbDC8mmL7r4qZ0ClNnw=
 github.com/stones-hub/taurus-pro-tcp v0.0.1 h1:ZSE4zZfZYugcl+Gq9LjdYpv3v3hoyVwgSTTAcr4O0Ac=
 github.com/stones-hub/taurus-pro-tcp v0.0.1/go.mod h1:Xk1Nx1rmz+QBVKONFeccn9PBfeY1wzwAC8APVL05oYk=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

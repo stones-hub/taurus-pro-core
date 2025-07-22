@@ -11,7 +11,7 @@ require (
 	github.com/stones-hub/taurus-pro-grpc v0.0.1
 	github.com/stones-hub/taurus-pro-http v0.0.7
 	github.com/stones-hub/taurus-pro-opentelemetry v0.0.1
-	github.com/stones-hub/taurus-pro-storage v0.0.4
+	github.com/stones-hub/taurus-pro-storage v0.0.5
 	github.com/stones-hub/taurus-pro-tcp v0.0.1
 	google.golang.org/grpc v1.73.0
 	gorm.io/gorm v1.30.0
