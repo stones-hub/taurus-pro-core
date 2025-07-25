@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"{{.ProjectName}}/app/crontab"
+	"{{.ProjectName}}/app/hooks"
 	"{{.ProjectName}}/internal/taurus"
 )
 
@@ -152,6 +153,11 @@ func init() {
 
 	// 启动 pprof 服务
 	startPprofServer()
+
+	// 启动 hooks
+	if err := hooks.StartHook(); err != nil {
+		log.Printf("%s🔗 -> Hooks start failed: %v %s\n", Red, err, Reset)
+	}
 
 	// 启动定时任务
 	if err := crontab.StartTasks(); err != nil {

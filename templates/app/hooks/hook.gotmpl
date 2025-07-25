@@ -1,0 +1,51 @@
+package hooks
+
+import (
+	"context"
+	"time"
+
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/hook"
+)
+
+type HookType string
+
+const (
+	HookTypeStart HookType = "start"
+	HookTypeStop  HookType = "stop"
+)
+
+// RegisterHook 注册一个钩子
+// name: 钩子名称
+// hookType: 钩子类型
+// hookFunc: 钩子函数
+// priority: 钩子优先级 0-10 越大优先级越高
+func RegisterHook(name string, hookType HookType, hookFunc hook.HookFunc, priority int) {
+	switch hookType {
+	case HookTypeStart:
+		taurus.Container.Hook.RegisterStartHook(name, hookFunc, priority)
+	case HookTypeStop:
+		taurus.Container.Hook.RegisterStopHook(name, hookFunc, priority)
+	}
+}
+
+// RegisterDefaultHook 注册一个默认钩子
+// name: 钩子名称
+// hookType: 钩子类型
+// hookFunc: 钩子函数
+// 默认优先级100
+func RegisterDefaultHook(name string, hookType HookType, hookFunc hook.HookFunc) {
+	switch hookType {
+	case HookTypeStart:
+		taurus.Container.Hook.RegisterStartHookDefault(name, hookFunc)
+	case HookTypeStop:
+		taurus.Container.Hook.RegisterStopHookDefault(name, hookFunc)
+	}
+}
+
+func StartHook() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return taurus.Container.Hook.Start(ctx)
+}
