@@ -1,10 +1,12 @@
 package common
 
 import (
+	"context"
 	"log"
 	"time"
 
 	"github.com/stones-hub/taurus-pro-common/pkg/cron"
+	"github.com/stones-hub/taurus-pro-common/pkg/hook"
 	"github.com/stones-hub/taurus-pro-common/pkg/logx"
 	"github.com/stones-hub/taurus-pro-common/pkg/templates"
 	"github.com/stones-hub/taurus-pro-config/pkg/config"
@@ -14,12 +16,12 @@ import (
 var CommonComponent = types.Component{
 	Name:         "common",
 	Package:      "github.com/stones-hub/taurus-pro-common",
-	Version:      "v0.1.0",
+	Version:      "v0.1.3",
 	Description:  "通用基础组件，包含定时任务、日志、模板工具等",
 	IsCustom:     true,
 	Required:     true,
 	Dependencies: []string{"config"},
-	Wire:         []*types.Wire{cronWire, loggerWire, templateWire},
+	Wire:         []*types.Wire{cronWire, loggerWire, templateWire, hookWire},
 }
 
 var cronWire = &types.Wire{
@@ -237,4 +239,40 @@ func ProvideTemplateComponent(cfg *config.Config) (*templates.Manager, func(), e
 		cleanup()
 		log.Printf("%s🔗 -> Clean up templates components successfully. %s\n", "\033[32m", "\033[0m")
 	}, err
+}
+
+var hookWire = &types.Wire{
+	RequirePath:  []string{"github.com/stones-hub/taurus-pro-common/pkg/hook", "context", "time", "log"},
+	Name:         "Hook",
+	Type:         "*hook.HookManager",
+	ProviderName: "ProvideHookComponent",
+	Provider: `func {{.ProviderName}}() ({{.Type}}, func(), error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	hook := hook.NewHookManager()
+	log.Printf("%s🔗 -> Hook all initialized successfully. %s\n", "\033[32m", "\033[0m")
+	return hook, func() {
+		defer cancel()
+		err := hook.Stop(ctx)
+		if err != nil {
+			log.Printf("%s🔗 -> Clean up hook components failed, error: %v %s\n", "\033[31m", err, "\033[0m")
+		} else {
+			log.Printf("%s🔗 -> Clean up hook components successfully. %s\n", "\033[32m", "\033[0m")
+		}
+	}, nil
+}`,
+}
+
+func ProvideHookComponent() (*hook.HookManager, func(), error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	hook := hook.NewHookManager()
+	log.Printf("%s🔗 -> Hook all initialized successfully. %s\n", "\033[32m", "\033[0m")
+	return hook, func() {
+		defer cancel()
+		err := hook.Stop(ctx)
+		if err != nil {
+			log.Printf("%s🔗 -> Clean up hook components failed, error: %v %s\n", "\033[31m", err, "\033[0m")
+		} else {
+			log.Printf("%s🔗 -> Clean up hook components successfully. %s\n", "\033[32m", "\033[0m")
+		}
+	}, nil
 }

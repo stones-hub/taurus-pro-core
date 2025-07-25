@@ -5,24 +5,24 @@ go 1.24.2
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/spf13/cobra v1.9.1
-	github.com/stones-hub/taurus-pro-common v0.1.0
+	github.com/stones-hub/taurus-pro-common v0.1.2
 	github.com/stones-hub/taurus-pro-config v0.0.3
 	github.com/stones-hub/taurus-pro-consul v0.1.1
 	github.com/stones-hub/taurus-pro-grpc v0.0.1
 	github.com/stones-hub/taurus-pro-http v0.0.7
 	github.com/stones-hub/taurus-pro-opentelemetry v0.0.1
-	github.com/stones-hub/taurus-pro-storage v0.0.5
+	github.com/stones-hub/taurus-pro-storage v0.0.8
 	github.com/stones-hub/taurus-pro-tcp v0.0.1
-	google.golang.org/grpc v1.73.0
-	gorm.io/gorm v1.30.0
+	google.golang.org/grpc v1.74.2
+	gorm.io/gorm v1.30.1
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/ThinkInAIXYZ/go-mcp v0.2.17 // indirect
+	github.com/ThinkInAIXYZ/go-mcp v0.2.18 // indirect
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clbanning/mxj v1.8.4 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
@@ -58,7 +58,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/mattn/go-sqlite3 v1.14.28 // indirect
+	github.com/mattn/go-sqlite3 v1.14.29 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -70,8 +70,8 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
-	github.com/tencentyun/cos-go-sdk-v5 v0.7.66 // indirect
+	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.67 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -88,15 +88,15 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc // indirect
+	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/term v0.33.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250721164621-a45f3dfb1074 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250721164621-a45f3dfb1074 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
