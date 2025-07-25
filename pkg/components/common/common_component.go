@@ -247,10 +247,10 @@ var hookWire = &types.Wire{
 	Type:         "*hook.HookManager",
 	ProviderName: "ProvideHookComponent",
 	Provider: `func {{.ProviderName}}() ({{.Type}}, func(), error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	hook := hook.NewHookManager()
 	log.Printf("%s🔗 -> Hook all initialized successfully. %s\n", "\033[32m", "\033[0m")
 	return hook, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		err := hook.Stop(ctx)
 		if err != nil {
@@ -263,10 +263,10 @@ var hookWire = &types.Wire{
 }
 
 func ProvideHookComponent() (*hook.HookManager, func(), error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	hook := hook.NewHookManager()
 	log.Printf("%s🔗 -> Hook all initialized successfully. %s\n", "\033[32m", "\033[0m")
 	return hook, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		err := hook.Stop(ctx)
 		if err != nil {
