@@ -131,16 +131,34 @@ func (s *Scanner) scanFile(filename string) error {
 							if ident, ok := sel.X.(*ast.Ident); ok {
 								if ident.Name == "wire" && sel.Sel.Name == "NewSet" {
 									// 尝试从变量名推断结构体类型
-									// 例如：UserServiceSet -> UserService
-									structType := strings.TrimSuffix(name.Name, "Set")
-									if _, exists := structs[structType]; exists {
-										// fmt.Printf("Found provider set: %s for struct: %s in package %s\n",
-										// name.Name, structType, pkgPath)
-										s.providerSets = append(s.providerSets, ProviderSetInfo{
-											Name:       name.Name,
-											PkgPath:    pkgPath,
-											StructType: structType,
-										})
+									// 支持多种命名模式：
+									// 1. UserServiceSet -> UserService
+									// 2. UserServiceWireSet -> UserService
+									// 3. UserServiceProviderSet -> UserService
+									var structType string
+
+									// 尝试不同的后缀模式
+									suffixes := []string{"WireSet", "ProviderSet", "Set"}
+									for _, suffix := range suffixes {
+										if strings.HasSuffix(name.Name, suffix) {
+											structType = strings.TrimSuffix(name.Name, suffix)
+											break
+										}
+									}
+
+									// 严格匹配：只有在当前文件中找到对应结构体才添加到结果中
+									if structType != "" {
+										if _, exists := structs[structType]; exists {
+											// 找到了对应的结构体
+											// fmt.Printf("Found provider set: %s for struct: %s in package %s\n",
+											// name.Name, structType, pkgPath)
+											s.providerSets = append(s.providerSets, ProviderSetInfo{
+												Name:       name.Name,
+												PkgPath:    pkgPath,
+												StructType: structType,
+											})
+										}
+										// 如果没有找到对应的结构体，则不添加到结果中（严格匹配）
 									}
 								}
 							}
