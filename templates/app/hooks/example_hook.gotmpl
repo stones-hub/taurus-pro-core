@@ -1,0 +1,18 @@
+package hooks
+
+import (
+	"context"
+	"log"
+)
+
+func init() {
+	RegisterHook("example_start_hook", HookTypeStart, func(ctx context.Context) error {
+		log.Println("example_start_hook start")
+		return nil
+	}, 100)
+
+	RegisterHook("example_stop_hook", HookTypeStop, func(ctx context.Context) error {
+		log.Println("example_stop_hook stop")
+		return nil
+	}, 100)
+}

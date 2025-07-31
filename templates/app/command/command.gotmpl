@@ -1,0 +1,31 @@
+package command
+
+import (
+	"{{.ProjectName}}/internal/taurus"
+	"log"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/cmd"
+)
+
+var (
+	commands = make([]cmd.Command, 0)
+)
+
+func Register(command ...cmd.Command) {
+	commands = append(commands, command...)
+}
+
+// 启动脚本命令
+func StartCommand() {
+	for _, command := range commands {
+		err := taurus.Container.Command.Register(command)
+		if err != nil {
+			log.Printf("Register command %s failed: %v\n", command.Name(), err)
+			continue
+		}
+		log.Printf("Register command %s success\n", command.Name())
+	}
+
+	// 清理commands
+	commands = make([]cmd.Command, 0)
+}

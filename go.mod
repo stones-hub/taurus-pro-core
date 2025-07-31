@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/spf13/cobra v1.9.1
-	github.com/stones-hub/taurus-pro-common v0.1.2
+	github.com/stones-hub/taurus-pro-common v0.1.7
 	github.com/stones-hub/taurus-pro-config v0.0.3
 	github.com/stones-hub/taurus-pro-consul v0.1.1
 	github.com/stones-hub/taurus-pro-grpc v0.0.1

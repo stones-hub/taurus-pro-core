@@ -9,9 +9,11 @@ import (
 	_ "net/http/pprof" // 导入 pprof
 	"os"
 	"os/signal" // 导入 sync 包
+	"strings"
 	"syscall"
 	"time"
 
+	"{{.ProjectName}}/app/command"
 	"{{.ProjectName}}/app/crontab"
 	"{{.ProjectName}}/app/hooks"
 	"{{.ProjectName}}/internal/taurus"
@@ -31,11 +33,59 @@ const (
 var (
 	env        = ".env.local"
 	configPath = "./config"
+	scriptMode = false
 	Core       *Injector
 	cleanups   []func()
 )
 
+func RunCommand() {
+	// 判断命令行是否是脚本命令， 如果是则启动脚本命令
+	// 如果是脚本命令，必须使用命令行参数 --script 指定脚本命令
+	// 如果命令行参数 --script 不存在，则启动http服务
+	if scriptMode {
+		// 过滤掉应用级别的参数，只传递真正的命令参数给命令管理器
+		args := os.Args[1:] // 跳过程序名
+		filteredArgs := make([]string, 0)
+
+		for i := 0; i < len(args); i++ {
+			arg := args[i]
+
+			// 跳过应用级别的参数
+			switch arg {
+			case "--script", "-script":
+				continue
+			case "--env", "-e":
+				// 跳过 --env 参数及其值
+				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+					i++ // 跳过下一个参数（env的值）
+				}
+				continue
+			case "--config", "-c":
+				// 跳过 --config 参数及其值
+				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+					i++ // 跳过下一个参数（config的值）
+				}
+				continue
+			}
+
+			filteredArgs = append(filteredArgs, arg)
+		}
+
+		// 重新设置 os.Args，只包含过滤后的参数
+		os.Args = append([]string{os.Args[0]}, filteredArgs...)
+
+		err := taurus.Container.Command.Run()
+		if err != nil {
+			log.Fatalf("%sCommand run failed: %v %s\n", Red, err, Reset)
+		}
+		os.Exit(0)
+	}
+}
+
 func Run() {
+	// 启动 pprof 服务
+	runPprofServer()
+
 	// use errChan to receive http server startup error
 	errChan := make(chan error, 1)
 	taurus.Container.Http.Start(errChan)
@@ -122,6 +172,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s-e, --env <file>%s      Specify the environment file (default \".env.local\")\n", Green, Reset)
 		fmt.Fprintf(os.Stderr, "  %s-c, --config <path>%s   Specify the configuration file or directory (default \"config\")\n", Green, Reset)
+		fmt.Fprintf(os.Stderr, "  %s--script%s          	Run in script mode\n", Green, Reset)
 		fmt.Fprintf(os.Stderr, "  %s-h, --help%s            Show this help message\n", Green, Reset)
 		fmt.Fprintf(os.Stderr, "%s\n", Cyan+"==============================================="+Reset)
 	}
@@ -131,6 +182,9 @@ func init() {
 	flag.StringVar(&env, "e", ".env.local", "Environment file (alias)")
 	flag.StringVar(&configPath, "config", "config", "Path to the configuration file or directory")
 	flag.StringVar(&configPath, "c", "config", "Path to the configuration file or directory (alias)")
+
+	// 添加脚本模式参数
+	flag.BoolVar(&scriptMode, "script", false, "Run in script mode")
 
 	// parse command line arguments
 	flag.Parse()
@@ -151,9 +205,6 @@ func init() {
 	}
 	cleanups = append(cleanups, cleanup)
 
-	// 启动 pprof 服务
-	startPprofServer()
-
 	// 启动 hooks
 	if err := hooks.StartHook(); err != nil {
 		log.Printf("%s🔗 -> Hooks start failed: %v %s\n", Red, err, Reset)
@@ -163,9 +214,12 @@ func init() {
 	if err := crontab.StartTasks(); err != nil {
 		log.Printf("%s🔗 -> Cron tasks start failed: %v %s\n", Red, err, Reset)
 	}
+
+	// 启动脚本命令
+	command.StartCommand()
 }
 
-func startPprofServer() {
+func runPprofServer() {
 	// 启动 pprof 服务
 	if taurus.Container.Config.GetBool("pprof_enabled") {
 		server := &http.Server{
@@ -194,4 +248,73 @@ func startPprofServer() {
 		})
 	}
 
+	/*
+		===============================================================================
+		📊 PProf 性能分析访问指南
+		===============================================================================
+
+		🌐 基础访问地址: http://localhost:6060/debug/pprof/
+
+		📈 常用性能分析端点:
+
+		1. 🧠 内存分析
+		   - 堆内存使用: http://localhost:6060/debug/pprof/heap
+		   - 内存分配: http://localhost:6060/debug/pprof/allocs
+		   - 内存分析(带调试): http://localhost:6060/debug/pprof/heap?debug=1
+
+		2. ⚡ CPU 分析
+		   - CPU Profile (30秒): http://localhost:6060/debug/pprof/profile
+		   - CPU Profile (自定义时长): http://localhost:6060/debug/pprof/profile?seconds=60
+
+		3. 🔄 Goroutine 分析
+		   - Goroutine 概览: http://localhost:6060/debug/pprof/goroutine
+		   - 完整堆栈转储: http://localhost:6060/debug/pprof/goroutine?debug=2
+		   - Goroutine 调试信息: http://localhost:6060/debug/pprof/goroutine?debug=1
+
+		4. 🔒 阻塞和锁分析
+		   - 阻塞分析: http://localhost:6060/debug/pprof/block
+		   - 互斥锁分析: http://localhost:6060/debug/pprof/mutex
+
+		5. 🧵 线程分析
+		   - 线程创建: http://localhost:6060/debug/pprof/threadcreate
+
+		6. 📊 追踪分析
+		   - 执行追踪: http://localhost:6060/debug/pprof/trace
+
+		7. 🔧 调试工具
+		   - 命令行参数: http://localhost:6060/debug/pprof/cmdline
+		   - 符号表: http://localhost:6060/debug/pprof/symbol
+
+		💡 使用技巧:
+
+		1. 内存泄漏检测:
+		   curl http://localhost:6060/debug/pprof/heap > heap.prof
+		   go tool pprof heap.prof
+		   (pprof) top
+		   (pprof) list <function_name>
+
+		2. CPU 性能分析:
+		   curl http://localhost:6060/debug/pprof/profile > cpu.prof
+		   go tool pprof cpu.prof
+		   (pprof) top
+		   (pprof) web
+
+		3. Goroutine 泄漏检测:
+		   curl http://localhost:6060/debug/pprof/goroutine?debug=2 > goroutine.txt
+		   # 分析 goroutine 数量和堆栈
+
+		4. 实时监控:
+		   watch -n 5 'curl -s http://localhost:6060/debug/pprof/ | grep -E "goroutine|heap"'
+
+		5. 生成火焰图:
+		   go tool pprof -http=:8081 http://localhost:6060/debug/pprof/profile
+
+		⚠️  注意事项:
+		- 生产环境谨慎使用，可能影响性能
+		- CPU profile 会暂停程序执行
+		- 大量 goroutine 时 debug=2 可能很慢
+		- 建议在测试环境进行详细分析
+
+		===============================================================================
+	*/
 }

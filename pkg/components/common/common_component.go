@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/stones-hub/taurus-pro-common/pkg/cmd"
 	"github.com/stones-hub/taurus-pro-common/pkg/cron"
 	"github.com/stones-hub/taurus-pro-common/pkg/hook"
 	"github.com/stones-hub/taurus-pro-common/pkg/logx"
@@ -16,12 +17,12 @@ import (
 var CommonComponent = types.Component{
 	Name:         "common",
 	Package:      "github.com/stones-hub/taurus-pro-common",
-	Version:      "v0.1.4",
+	Version:      "v0.1.7",
 	Description:  "通用基础组件，包含定时任务、日志、模板工具等",
 	IsCustom:     true,
 	Required:     true,
 	Dependencies: []string{"config"},
-	Wire:         []*types.Wire{cronWire, loggerWire, templateWire, hookWire},
+	Wire:         []*types.Wire{cronWire, loggerWire, templateWire, hookWire, cmdWire},
 }
 
 var cronWire = &types.Wire{
@@ -274,5 +275,29 @@ func ProvideHookComponent() (*hook.HookManager, func(), error) {
 		} else {
 			log.Printf("%s🔗 -> Clean up hook components successfully. %s\n", "\033[32m", "\033[0m")
 		}
+	}, nil
+}
+
+var cmdWire = &types.Wire{
+	RequirePath:  []string{"github.com/stones-hub/taurus-pro-common/pkg/cmd", "log"},
+	Name:         "Command",
+	Type:         "*cmd.Manager",
+	ProviderName: "ProvideCmdComponent",
+	Provider: `func {{.ProviderName}}() ({{.Type}}, func(), error) {
+	command := cmd.NewManager()
+	log.Printf("%s🔗 -> Command manager all initialized successfully. %s\n", "\033[32m", "\033[0m")
+	return command, func() {
+		command.Clear()
+		log.Printf("%s🔗 -> Clean up command manager successfully. %s\n", "\033[32m", "\033[0m")
+	}, nil
+}`,
+}
+
+func ProvideCmdComponent() (*cmd.Manager, func(), error) {
+	command := cmd.NewManager()
+	log.Printf("%s🔗 -> Command manager all initialized successfully. %s\n", "\033[32m", "\033[0m")
+	return command, func() {
+		command.Clear()
+		log.Printf("%s🔗 -> Clean up command manager successfully. %s\n", "\033[32m", "\033[0m")
 	}, nil
 }

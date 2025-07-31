@@ -16,18 +16,32 @@ const (
 	HookTypeStop  HookType = "stop"
 )
 
+// HookModel 钩子模型
+type HookModel struct {
+	Name     string
+	Type     HookType
+	Priority int
+	Hook     hook.HookFunc
+}
+
+var (
+	// hooks 钩子列表
+	hooks = make([]*HookModel, 0)
+)
+
 // RegisterHook 注册一个钩子
 // name: 钩子名称
 // hookType: 钩子类型
 // hookFunc: 钩子函数
 // priority: 钩子优先级 0-10 越大优先级越高
 func RegisterHook(name string, hookType HookType, hookFunc hook.HookFunc, priority int) {
-	switch hookType {
-	case HookTypeStart:
-		taurus.Container.Hook.RegisterStartHook(name, hookFunc, priority)
-	case HookTypeStop:
-		taurus.Container.Hook.RegisterStopHook(name, hookFunc, priority)
+	hook := &HookModel{
+		Name:     name,
+		Type:     hookType,
+		Priority: priority,
+		Hook:     hookFunc,
 	}
+	hooks = append(hooks, hook)
 }
 
 // RegisterDefaultHook 注册一个默认钩子
@@ -36,16 +50,24 @@ func RegisterHook(name string, hookType HookType, hookFunc hook.HookFunc, priori
 // hookFunc: 钩子函数
 // 默认优先级100
 func RegisterDefaultHook(name string, hookType HookType, hookFunc hook.HookFunc) {
-	switch hookType {
-	case HookTypeStart:
-		taurus.Container.Hook.RegisterStartHookDefault(name, hookFunc)
-	case HookTypeStop:
-		taurus.Container.Hook.RegisterStopHookDefault(name, hookFunc)
-	}
+	RegisterHook(name, hookType, hookFunc, 100)
 }
 
 func StartHook() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	for _, hook := range hooks {
+		switch hook.Type {
+		case HookTypeStart:
+			taurus.Container.Hook.RegisterStartHook(hook.Name, hook.Hook, hook.Priority)
+		case HookTypeStop:
+			taurus.Container.Hook.RegisterStopHook(hook.Name, hook.Hook, hook.Priority)
+		}
+	}
+	// 清理hooks
+	hooks = make([]*HookModel, 0)
+
+	// 调用启动钩子
 	return taurus.Container.Hook.Start(ctx)
 }

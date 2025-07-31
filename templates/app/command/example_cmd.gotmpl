@@ -1,0 +1,240 @@
+package command
+
+import (
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/cmd"
+)
+
+// 继承cmd.BaseCommand和cmd.Command接口
+type ExampleCommand struct {
+	cmd.BaseCommand
+}
+
+// Run 执行用户管理命令
+func (c *ExampleCommand) Run(args []string) error {
+	ctx, err := c.ParseOptions(args)
+	if err != nil {
+		return err
+	}
+
+	// 获取所有选项值
+	name := ctx.Options["name"].(string)
+	email := ctx.Options["email"].(string)
+	age := ctx.Options["age"].(int)
+	active := ctx.Options["active"].(bool)
+	score := ctx.Options["score"].(float64)
+	verbose := ctx.Options["verbose"].(bool)
+	roles := ctx.Options["roles"].(string)
+	department := ctx.Options["department"].(string)
+	level := ctx.Options["level"].(int)
+	verified := ctx.Options["verified"].(bool)
+	salary := ctx.Options["salary"].(float64)
+
+	fmt.Println("=== 用户管理命令 ===")
+	fmt.Printf("执行时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Println()
+
+	// 基本信息
+	fmt.Println("📋 用户基本信息:")
+	fmt.Printf("  姓名: %s\n", name)
+	fmt.Printf("  邮箱: %s\n", email)
+	fmt.Printf("  年龄: %d\n", age)
+	fmt.Printf("  部门: %s\n", department)
+	fmt.Printf("  级别: %d\n", level)
+	fmt.Printf("  角色: %s\n", roles)
+	fmt.Printf("  状态: %s\n", map[bool]string{true: "激活", false: "禁用"}[active])
+	fmt.Printf("  验证: %s\n", map[bool]string{true: "已验证", false: "未验证"}[verified])
+	fmt.Printf("  评分: %.1f\n", score)
+	fmt.Printf("  薪资: ¥%.2f\n", salary)
+
+	// 详细分析
+	if verbose {
+		fmt.Println()
+		fmt.Println("🔍 详细分析:")
+		fmt.Printf("  姓名长度: %d 字符\n", len(name))
+		fmt.Printf("  年龄分类: %s\n", getAgeCategory(age))
+		fmt.Printf("  评分等级: %s\n", getScoreGrade(score))
+		fmt.Printf("  薪资等级: %s\n", getSalaryLevel(salary))
+		fmt.Printf("  邮箱域名: %s\n", getEmailDomain(email))
+		fmt.Printf("  角色数量: %d\n", len(strings.Split(roles, ",")))
+	}
+
+	// 业务逻辑
+	fmt.Println()
+	fmt.Println("⚙️  业务处理:")
+	fmt.Printf("  正在创建用户: %s\n", name)
+	time.Sleep(100 * time.Millisecond)
+
+	if !verified {
+		fmt.Printf("  发送验证邮件到: %s\n", email)
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	if active {
+		fmt.Printf("  激活用户账户\n")
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	fmt.Printf("  分配角色: %s\n", roles)
+	time.Sleep(50 * time.Millisecond)
+
+	fmt.Printf("  设置部门: %s\n", department)
+	time.Sleep(50 * time.Millisecond)
+
+	fmt.Println()
+	fmt.Println("✅ 用户创建完成!")
+
+	return nil
+}
+
+// ==================== 辅助函数 ====================
+
+func getAgeCategory(age int) string {
+	switch {
+	case age < 18:
+		return "未成年"
+	case age < 30:
+		return "青年"
+	case age < 50:
+		return "中年"
+	case age < 65:
+		return "中老年"
+	default:
+		return "老年"
+	}
+}
+
+func getScoreGrade(score float64) string {
+	switch {
+	case score >= 90:
+		return "优秀"
+	case score >= 80:
+		return "良好"
+	case score >= 70:
+		return "中等"
+	case score >= 60:
+		return "及格"
+	default:
+		return "不及格"
+	}
+}
+
+func getSalaryLevel(salary float64) string {
+	switch {
+	case salary >= 50000:
+		return "高薪"
+	case salary >= 20000:
+		return "中薪"
+	case salary >= 8000:
+		return "标准"
+	default:
+		return "基础"
+	}
+}
+
+func getEmailDomain(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return "未知"
+}
+
+func init() {
+	// 注册管理命令
+	baseCommand, err := cmd.NewBaseCommand(
+		"user",
+		"用户管理命令 - 创建、查询、更新用户信息，支持所有数据类型",
+		"[options]",
+		[]cmd.Option{
+			{
+				Name:        "name",
+				Shorthand:   "n",
+				Description: "用户名（必填）",
+				Type:        cmd.OptionTypeString,
+				Required:    true,
+			},
+			{
+				Name:        "email",
+				Shorthand:   "e",
+				Description: "邮箱地址",
+				Type:        cmd.OptionTypeString,
+				Default:     "user@example.com",
+			},
+			{
+				Name:        "age",
+				Shorthand:   "a",
+				Description: "年龄",
+				Type:        cmd.OptionTypeInt,
+				Default:     25,
+			},
+			{
+				Name:        "active",
+				Shorthand:   "A",
+				Description: "是否激活",
+				Type:        cmd.OptionTypeBool,
+				Default:     true,
+			},
+			{
+				Name:        "score",
+				Shorthand:   "s",
+				Description: "用户评分",
+				Type:        cmd.OptionTypeFloat,
+				Default:     85.5,
+			},
+			{
+				Name:        "verbose",
+				Shorthand:   "v",
+				Description: "详细输出",
+				Type:        cmd.OptionTypeBool,
+				Default:     false,
+			},
+			{
+				Name:        "roles",
+				Shorthand:   "r",
+				Description: "用户角色（逗号分隔）",
+				Type:        cmd.OptionTypeString,
+				Default:     "user",
+			},
+			{
+				Name:        "department",
+				Shorthand:   "d",
+				Description: "所属部门",
+				Type:        cmd.OptionTypeString,
+				Default:     "技术部",
+			},
+			{
+				Name:        "level",
+				Shorthand:   "l",
+				Description: "用户级别",
+				Type:        cmd.OptionTypeInt,
+				Default:     1,
+			},
+			{
+				Name:        "verified",
+				Shorthand:   "V",
+				Description: "是否已验证",
+				Type:        cmd.OptionTypeBool,
+				Default:     false,
+			},
+			{
+				Name:        "salary",
+				Shorthand:   "S",
+				Description: "薪资",
+				Type:        cmd.OptionTypeFloat,
+				Default:     15000.0,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("NewBaseCommand failed: %v\n", err)
+		return
+	}
+	Register(&ExampleCommand{
+		BaseCommand: *baseCommand,
+	})
+}

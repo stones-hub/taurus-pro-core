@@ -55,6 +55,11 @@ func StartTasks() error {
 		}
 		log.Printf("register task success (ID: %d)\n", taskID)
 	}
+
+	// 清理tasks
+	tasks = make([]*cron.Task, 0)
+	taskGroups = make(map[string]*cron.TaskGroup, 0)
+
 	cm.Start()
 	return nil
 }
