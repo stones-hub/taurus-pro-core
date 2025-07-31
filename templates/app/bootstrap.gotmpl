@@ -38,7 +38,7 @@ var (
 	cleanups   []func()
 )
 
-func RunCommand() {
+func runCommand() {
 	// 判断命令行是否是脚本命令， 如果是则启动脚本命令
 	// 如果是脚本命令，必须使用命令行参数 --script 指定脚本命令
 	// 如果命令行参数 --script 不存在，则启动http服务
@@ -83,6 +83,10 @@ func RunCommand() {
 }
 
 func Run() {
+
+	// 启动脚本命令
+	runCommand()
+
 	// 启动 pprof 服务
 	runPprofServer()
 

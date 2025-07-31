@@ -434,9 +434,375 @@ taurus-pro-core/
 
 ---
 
-## 十一、故障排除
+## 十一、Hook 生命周期钩子
 
-### 11.1、常见问题
+### 11.1、Hook 概述
+
+Hook 是应用生命周期管理的重要组件，允许在应用启动和停止时执行自定义逻辑。支持优先级控制，确保钩子按正确顺序执行。
+
+### 11.2、Hook 类型
+
+- **`HookTypeStart`**：应用启动时执行的钩子
+- **`HookTypeStop`**：应用停止时执行的钩子
+
+### 11.3、注册 Hook
+
+#### 基本注册方式
+
+```go
+package hooks
+
+import (
+    "context"
+    "log"
+)
+
+func init() {
+    // 注册启动钩子
+    RegisterHook("my_start_hook", HookTypeStart, func(ctx context.Context) error {
+        log.Println("应用启动时执行...")
+        // 执行启动逻辑
+        return nil
+    }, 100) // 优先级 100
+
+    // 注册停止钩子
+    RegisterHook("my_stop_hook", HookTypeStop, func(ctx context.Context) error {
+        log.Println("应用停止时执行...")
+        // 执行清理逻辑
+        return nil
+    }, 100)
+}
+```
+
+#### 默认优先级注册
+
+```go
+func init() {
+    // 使用默认优先级 100
+    RegisterDefaultHook("simple_hook", HookTypeStart, func(ctx context.Context) error {
+        log.Println("简单钩子执行...")
+        return nil
+    })
+}
+```
+
+### 11.4、Hook 优先级
+
+- **优先级范围**：0-10，数值越大优先级越高
+- **执行顺序**：高优先级钩子先执行
+- **默认优先级**：100
+
+### 11.5、Hook 最佳实践
+
+1. **资源初始化**：在启动钩子中初始化数据库连接、缓存等
+2. **优雅关闭**：在停止钩子中关闭连接、保存状态等
+3. **错误处理**：钩子函数应返回错误，框架会记录日志
+4. **超时控制**：钩子执行有10秒超时限制
+
+---
+
+## 十二、Crontab 定时任务
+
+### 12.1、Crontab 概述
+
+Crontab 提供强大的定时任务管理功能，支持任务分组、标签、重试、超时等特性。
+
+### 12.2、创建定时任务
+
+#### 基本任务创建
+
+```go
+package crontab
+
+import (
+    "context"
+    "log"
+    "time"
+
+    "github.com/stones-hub/taurus-pro-common/pkg/cron"
+)
+
+func init() {
+    // 创建简单任务
+    simpleTask := cron.NewTask(
+        "simple_task",
+        "*/5 * * * * *", // 每5秒执行一次
+        func(ctx context.Context) error {
+            log.Println("执行简单任务...")
+            return nil
+        },
+    )
+
+    Register(simpleTask)
+}
+```
+
+#### 高级任务配置
+
+```go
+func init() {
+    // 创建任务组
+    businessGroup := GetOrCreateTaskGroup("business", "core", "monitoring")
+
+    // 创建复杂任务
+    complexTask := cron.NewTask(
+        "complex_task",
+        "0 */5 * * * *", // 每5分钟执行一次
+        func(ctx context.Context) error {
+            log.Println("开始执行复杂任务...")
+            
+            // 检查上下文取消
+            select {
+            case <-ctx.Done():
+                return ctx.Err()
+            case <-time.After(30 * time.Second):
+                log.Println("任务执行完成")
+                return nil
+            }
+        },
+        cron.WithTimeout(45*time.Second),        // 设置超时时间
+        cron.WithRetry(3, time.Second),          // 设置重试次数和间隔
+        cron.WithGroup(businessGroup),           // 设置任务组
+        cron.WithTag("data_sync"),               // 添加标签
+        cron.WithTag("periodic"),                // 添加多个标签
+    )
+
+    Register(complexTask)
+}
+```
+
+### 12.3、Cron 表达式
+
+支持标准的 cron 表达式格式：`秒 分 时 日 月 星期`
+
+#### 常用表达式示例
+
+```go
+"* * * * * *"     // 每秒执行
+"*/5 * * * * *"   // 每5秒执行
+"0 * * * * *"     // 每分钟执行
+"0 */5 * * * *"   // 每5分钟执行
+"0 0 * * * *"     // 每小时执行
+"0 0 0 * * *"     // 每天0点执行
+"0 0 12 * * *"    // 每天12点执行
+"0 0 0 * * 1"     // 每周一0点执行
+```
+
+### 12.4、任务配置选项
+
+#### 超时控制
+
+```go
+cron.WithTimeout(30 * time.Second)  // 任务超时时间
+```
+
+#### 重试机制
+
+```go
+cron.WithRetry(3, time.Second)      // 失败重试3次，间隔1秒
+```
+
+#### 任务分组
+
+```go
+// 创建任务组
+group := GetOrCreateTaskGroup("business", "core", "monitoring")
+
+// 使用任务组
+cron.WithGroup(group)
+```
+
+#### 标签管理
+
+```go
+cron.WithTag("data_sync")           // 添加单个标签
+cron.WithTag("periodic", "core")    // 添加多个标签
+```
+
+### 12.5、任务管理最佳实践
+
+1. **任务命名**：使用有意义的任务名称
+2. **错误处理**：在任务函数中正确处理错误
+3. **上下文检查**：定期检查 `ctx.Done()` 以支持优雅停止
+4. **资源管理**：合理设置超时和重试参数
+5. **日志记录**：记录任务执行的关键信息
+
+---
+
+## 十三、Command 命令行工具
+
+### 13.1、Command 概述
+
+Command 提供强大的命令行工具支持，可以创建自定义命令用于系统管理、数据处理等场景。
+
+### 13.2、创建自定义命令
+
+#### 基本命令结构
+
+```go
+package command
+
+import (
+    "fmt"
+    "log"
+
+    "github.com/stones-hub/taurus-pro-common/pkg/cmd"
+)
+
+// 继承 BaseCommand 和 Command 接口
+type MyCommand struct {
+    cmd.BaseCommand
+}
+
+// Run 执行命令逻辑
+func (c *MyCommand) Run(args []string) error {
+    ctx, err := c.ParseOptions(args)
+    if err != nil {
+        return err
+    }
+
+    // 获取选项值
+    name := ctx.Options["name"].(string)
+    age := ctx.Options["age"].(int)
+
+    fmt.Printf("Hello %s, you are %d years old\n", name, age)
+    return nil
+}
+
+func init() {
+    // 创建基础命令
+    baseCommand, err := cmd.NewBaseCommand(
+        "hello",                    // 命令名称
+        "Say hello to someone",     // 命令描述
+        "[options]",                // 使用说明
+        []cmd.Option{               // 选项定义
+            {
+                Name:        "name",
+                Shorthand:   "n",
+                Description: "Your name",
+                Type:        cmd.OptionTypeString,
+                Required:    true,
+            },
+            {
+                Name:        "age",
+                Shorthand:   "a",
+                Description: "Your age",
+                Type:        cmd.OptionTypeInt,
+                Default:     25,
+            },
+        },
+    )
+    if err != nil {
+        log.Printf("NewBaseCommand failed: %v\n", err)
+        return
+    }
+
+    // 注册命令
+    Register(&MyCommand{
+        BaseCommand: *baseCommand,
+    })
+}
+```
+
+### 13.3、选项类型支持
+
+#### 字符串选项
+
+```go
+{
+    Name:        "name",
+    Shorthand:   "n",
+    Description: "用户名",
+    Type:        cmd.OptionTypeString,
+    Required:    true,
+}
+```
+
+#### 整数选项
+
+```go
+{
+    Name:        "age",
+    Shorthand:   "a",
+    Description: "年龄",
+    Type:        cmd.OptionTypeInt,
+    Default:     25,
+}
+```
+
+#### 浮点数选项
+
+```go
+{
+    Name:        "score",
+    Shorthand:   "s",
+    Description: "评分",
+    Type:        cmd.OptionTypeFloat,
+    Default:     85.5,
+}
+```
+
+#### 布尔选项
+
+```go
+{
+    Name:        "verbose",
+    Shorthand:   "v",
+    Description: "详细输出",
+    Type:        cmd.OptionTypeBool,
+    Default:     false,
+}
+```
+
+### 13.4、运行命令
+
+#### 脚本模式运行
+
+```bash
+# 使用 --script 参数启用脚本模式
+./taurus --script user --name "张三" --age 30 --verbose
+
+# 使用短参数
+./taurus --script user -n "张三" -a 30 -v
+
+# 查看帮助
+./taurus --script user --help
+```
+
+#### 命令示例
+
+```bash
+# 基本使用
+./taurus --script user --name "李四" --email "lisi@example.com"
+
+# 使用所有选项
+./taurus --script user \
+  --name "王五" \
+  --email "wangwu@example.com" \
+  --age 28 \
+  --active \
+  --score 92.5 \
+  --verbose \
+  --roles "admin,user" \
+  --department "技术部" \
+  --level 3 \
+  --verified \
+  --salary 25000.0
+```
+
+### 13.5、命令开发最佳实践
+
+1. **命令命名**：使用简洁、有意义的命令名称
+2. **选项设计**：合理设计必填和可选选项
+3. **错误处理**：提供清晰的错误信息和帮助
+4. **输出格式**：使用统一的输出格式
+5. **文档说明**：为每个选项提供清晰的描述
+
+---
+
+## 十四、故障排除
+
+### 14.1、常见问题
 
 1. **环境变量文件不存在**
    ```
@@ -453,16 +819,69 @@ taurus-pro-core/
 3. **Docker 镜像构建失败**
    解决：检查 Dockerfile 和构建上下文是否正确
 
-### 11.2、日志查看
+4. **Hook 执行失败**
+   ```
+   Hook execution failed: context deadline exceeded
+   ```
+   解决：检查钩子函数是否超时，优化执行逻辑
+
+5. **定时任务注册失败**
+   ```
+   register task failed: invalid cron expression
+   ```
+   解决：检查 cron 表达式格式是否正确
+
+6. **命令执行失败**
+   ```
+   Command run failed: required option not provided
+   ```
+   解决：检查是否提供了所有必需的选项
+
+### 14.2、日志查看
 
 - **本地运行**：`tail -f logs/app.log`
 - **Docker 运行**：`docker logs $(APP_NAME)`
 - **Docker Compose**：`docker-compose logs -f`
 - **Docker Swarm**：`docker service logs $(APP_NAME)_app`
 
-### 11.3、服务状态检查
+### 14.3、服务状态检查
 
 - **本地进程**：`ps aux | grep $(APP_NAME)`
 - **Docker 容器**：`docker ps | grep $(APP_NAME)`
 - **Docker Compose**：`docker-compose ps`
 - **Docker Swarm**：`docker service ls | grep $(APP_NAME)`
+
+### 14.4、性能分析
+
+#### PProf 访问
+
+应用内置了 PProf 性能分析工具，默认在 `localhost:6060` 端口提供服务：
+
+```bash
+# 内存分析
+curl http://localhost:6060/debug/pprof/heap > heap.prof
+go tool pprof heap.prof
+
+# CPU 分析
+curl http://localhost:6060/debug/pprof/profile > cpu.prof
+go tool pprof cpu.prof
+
+# Goroutine 分析
+curl http://localhost:6060/debug/pprof/goroutine?debug=2 > goroutine.txt
+```
+
+#### 常用分析命令
+
+```bash
+# 查看内存使用情况
+(pprof) top
+
+# 查看特定函数的内存分配
+(pprof) list <function_name>
+
+# 生成火焰图
+go tool pprof -http=:8081 http://localhost:6060/debug/pprof/profile
+
+# 实时监控
+watch -n 5 'curl -s http://localhost:6060/debug/pprof/ | grep -E "goroutine|heap"'
+```
