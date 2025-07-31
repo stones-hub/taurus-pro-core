@@ -44,7 +44,59 @@ make wire
 2. 扫描 app 目录下的 provider set，并生成 wire.go 文件
 3. 生成 wire_gen.go 文件
 
-### 2.2、运行应用（包含 Wire 生成）
+### 2.2、依赖注入自动注入规则
+
+为了确保依赖注入能够自动注入，必须遵循以下严格规则：
+
+#### 命名规则
+Provider Set 变量名必须以以下后缀之一结尾：
+- **`Set`** - 例如：`UserServiceSet`
+- **`ProviderSet`** - 例如：`UserServiceProviderSet`  
+- **`WireSet`** - 例如：`UserServiceWireSet`
+
+#### 结构体匹配规则
+- **严格匹配**：Provider Set 变量对应的结构体必须在**当前文件**中定义
+- **命名对应**：Provider Set 变量名去掉后缀后，必须与结构体名称完全匹配
+
+#### 示例
+
+**✅ 正确的示例：**
+
+```go
+// user_service.go
+type UserService struct {
+    // 结构体定义
+}
+
+// 以下任意一种命名都可以被自动识别
+var UserServiceSet = wire.NewSet(NewUserService)
+var UserServiceProviderSet = wire.NewSet(NewUserService)
+var UserServiceWireSet = wire.NewSet(NewUserService)
+```
+
+**❌ 错误的示例：**
+
+```go
+// 错误1：变量名不以指定后缀结尾
+var UserServiceProvider = wire.NewSet(NewUserService)  // 缺少 "Set"
+
+// 错误2：结构体不在当前文件中定义
+// user_service.go 中没有 UserService 结构体定义
+var UserServiceSet = wire.NewSet(NewUserService)
+
+// 错误3：命名不匹配
+type UserController struct {}
+var UserServiceSet = wire.NewSet(NewUserController)  // 名称不匹配
+```
+
+#### 自动注入流程
+1. 扫描器识别符合命名规则的 `wire.NewSet` 变量
+2. 从变量名推断对应的结构体名称（去掉后缀）
+3. 在当前文件中查找对应的结构体定义
+4. 只有找到匹配的结构体时，才会被添加到依赖注入中
+5. 生成正确的 wire 代码和包路径引用
+
+### 2.3、运行应用（包含 Wire 生成）
 
 ```shell
 make run
