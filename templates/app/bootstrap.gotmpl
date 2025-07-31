@@ -78,6 +78,10 @@ func runCommand() {
 		if err != nil {
 			log.Fatalf("%sCommand run failed: %v %s\n", Red, err, Reset)
 		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		gracefulCleanup(ctx)
 		os.Exit(0)
 	}
 }
