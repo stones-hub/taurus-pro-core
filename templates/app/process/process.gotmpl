@@ -1,14 +1,13 @@
 package process
 
 import (
+	"{{.ProjectName}}/app/hooks"
 	"context"
 	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"{{.ProjectName}}/app/hooks"
 
 	"github.com/stones-hub/taurus-pro-storage/pkg/queue"
 	"github.com/stones-hub/taurus-pro-storage/pkg/queue/engine"
