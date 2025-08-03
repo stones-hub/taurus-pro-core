@@ -1,0 +1,140 @@
+package process
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"{{.ProjectName}}/app/hooks"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/queue"
+	"github.com/stones-hub/taurus-pro-storage/pkg/queue/engine"
+)
+
+var TestQueue *queue.Manager
+
+// TestProcessor 测试用的数据处理器
+type TestProcessor struct {
+	processedCount int64
+	failedCount    int64
+	retryCount     int64
+	mu             sync.RWMutex
+	shouldFail     bool
+	shouldRetry    bool
+	processingTime time.Duration
+	errors         []error
+}
+
+func NewTestProcessor(shouldFail, shouldRetry bool, processingTime time.Duration) *TestProcessor {
+	return &TestProcessor{
+		shouldFail:     shouldFail,
+		shouldRetry:    shouldRetry,
+		processingTime: processingTime,
+		errors:         make([]error, 0),
+	}
+}
+
+func (p *TestProcessor) Process(ctx context.Context, data []byte) error {
+
+	// 模拟处理时间
+	if p.processingTime > 0 {
+		select {
+		case <-time.After(p.processingTime):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		atomic.AddInt64(&p.failedCount, 1)
+		if p.shouldRetry {
+			atomic.AddInt64(&p.retryCount, 1)
+			err := queue.NewRetryableError(fmt.Errorf("simulated retryable error for data: %s", string(data)))
+			p.errors = append(p.errors, err)
+			return err
+		}
+		err := fmt.Errorf("simulated permanent error for data: %s", string(data))
+		p.errors = append(p.errors, err)
+		return err
+	}
+
+	atomic.AddInt64(&p.processedCount, 1)
+	log.Printf("TestProcessor: Successfully processed data: %s", string(data))
+	return nil
+}
+
+func (p *TestProcessor) GetStats() map[string]interface{} {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return map[string]interface{}{
+		"processed": atomic.LoadInt64(&p.processedCount),
+		"failed":    atomic.LoadInt64(&p.failedCount),
+		"retry":     atomic.LoadInt64(&p.retryCount),
+		"errors":    len(p.errors),
+	}
+}
+
+func (p *TestProcessor) Reset() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	atomic.StoreInt64(&p.processedCount, 0)
+	atomic.StoreInt64(&p.failedCount, 0)
+	atomic.StoreInt64(&p.retryCount, 0)
+	p.errors = p.errors[:0]
+}
+
+func init() {
+
+	hooks.RegisterHook("test_queue_mananger_start", hooks.HookTypeStart, func(ctx context.Context) error {
+
+		config := &queue.Config{
+			EngineType:        engine.TypeRedis,
+			Source:            "func_source",
+			Failed:            "func_failed",
+			Processing:        "func_processing",
+			Retry:             "func_retry",
+			ReaderCount:       2,
+			WorkerCount:       3,
+			WorkerTimeout:     time.Second * 10,
+			ReaderInterval:    time.Second * 10,
+			MaxRetries:        2,
+			RetryDelay:        time.Second * 5,
+			MaxRetryDelay:     time.Second * 2,
+			RetryFactor:       2.0,
+			EnableFailedQueue: true,
+			FailedInterval:    time.Second,
+			FailedBatch:       10,
+			EnableRetryQueue:  true,
+			RetryInterval:     time.Second * 5,
+			RetryBatch:        5,
+		}
+
+		var err error
+
+		TestQueue, err = queue.NewManager(NewTestProcessor(false, false, time.Millisecond*50), config)
+
+		if err != nil {
+			log.Fatalf("Failed to create test queue manager: %v", err)
+		}
+		if err = TestQueue.Start(); err != nil {
+			log.Fatalf("Failed to start test queue manager: %v", err)
+		}
+		log.Println("test_queue_mananger_start")
+		return nil
+	}, 100)
+
+	hooks.RegisterHook("test_queue_manager_stop", hooks.HookTypeStop, func(ctx context.Context) error {
+		timeoutctx, cancel := context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
+		TestQueue.Stop(timeoutctx)
+		log.Println("test_queue_manager_stop")
+		return nil
+	}, 100)
+
+}
