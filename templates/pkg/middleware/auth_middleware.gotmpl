@@ -1,0 +1,37 @@
+package middleware
+
+import (
+	"{{.ProjectName}}/internal/taurus"
+	"net/http"
+
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+func AuthMiddleware() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := GetAuthToken(r)
+			if token == "" {
+				httpx.SendResponse(w, http.StatusUnauthorized, "未授权.", nil)
+				return
+			}
+
+			// 验证token
+			authorization := taurus.Container.Config.GetString("http.authorization")
+			if authorization != token {
+				httpx.SendResponse(w, http.StatusUnauthorized, "未授权.", nil)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func GetAuthToken(r *http.Request) string {
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		return ""
+	}
+	return token
+}

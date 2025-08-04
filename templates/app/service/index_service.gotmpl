@@ -8,10 +8,11 @@ import (
 type IndexService struct{}
 
 // IndexServiceSet wire provider set
-var IndexServiceSet = wire.NewSet(wire.Struct(new(IndexService), "*"))
+var IndexServiceSet = wire.NewSet(NewIndexService)
 
+func NewIndexService() *IndexService {
+	return &IndexService{}
+}
 func (s *IndexService) Home() string {
 	return "Hello from my-service!"
 }
-
-type IndexService2 struct{}
