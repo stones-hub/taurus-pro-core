@@ -7,7 +7,7 @@ address = ["${REDIS_HOST:redis_demo}:${REDIS_PORT:6379}"]
 
 # Redis 服务器密码
 # 如果没有密码，可以留空
-password = ""
+password = ${REDIS_PASSWORD:""}
 
 # 使用的数据库索引
 # Redis 默认有 16 个数据库（0-15），通常使用 0
