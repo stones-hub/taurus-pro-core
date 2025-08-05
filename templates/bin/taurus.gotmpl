@@ -4,7 +4,9 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	"{{.ProjectName}}/app"
 	"{{.ProjectName}}/internal/taurus"
@@ -69,4 +71,22 @@ func pprof() {
 			}),
 		},
 	})
+}
+
+
+
+// setGlobalTimezone 设置全局时区为上海时区
+func setGlobalTimezone() {
+	// 加载上海时区
+	shanghaiLoc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		log.Printf("⚠️  加载上海时区失败: %v，将使用系统默认时区", err)
+		return
+	}
+
+	// 设置全局时区
+	time.Local = shanghaiLoc
+
+	log.Printf("✅ 全局时区已设置为上海时区 (Asia/Shanghai)")
+	log.Printf("📅 当前时间: %s", time.Now().Format("2006-01-02 15:04:05 MST"))
 }
