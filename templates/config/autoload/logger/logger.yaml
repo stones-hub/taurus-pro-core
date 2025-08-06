@@ -38,7 +38,25 @@ loggers:
     compress: true
     # 自定义日志格式化函数的名称 当 outputType 为 console 时可忽略此配置
     formatter: json 
-  
+  - name: panic
+    # 日志前缀 , 当 outputType 为 console 时可忽略此配置
+    prefix: ""
+    # 日志等级，可取值：0: debug, 1: info, 2: warn, 3: error, 4: fatal, 5: none
+    log_level: 0
+    # 输出类型，可取值：console（控制台输出）、file（文件输出）
+    output_type: file
+    # 日志文件路径，支持相对路径和绝对路径，当 outputType 为 console 时可忽略此配置
+    log_file_path: logs/panic/panic.log
+    # 单个日志文件的最大大小（单位：MB） 当 outputType 为 console 时可忽略此配置
+    max_size: 10
+    # 保留的旧日志文件的最大数量 当 outputType 为 console 时可忽略此配置
+    max_backups: 100
+    # 日志文件的最大保存天数 当 outputType 为 console 时可忽略此配置
+    max_age: 60
+    # 是否压缩旧日志文件 当 outputType 为 console 时可忽略此配置
+    compress: true
+    # 自定义日志格式化函数的名称 当 outputType 为 console 时可忽略此配置
+    formatter: default   
 
 # 修改于2025-07-30
 # author: yelei

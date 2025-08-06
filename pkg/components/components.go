@@ -29,15 +29,15 @@ var (
 
 	// 所有组件列表
 	AllComponents = []types.Component{
-		config.ConfigComponent,
-		http.HttpComponent,
-		grpc.GrpcComponent,
-		common.CommonComponent,
-		storage.StorageComponent,
-		tcp.TcpComponent,
-		otel.OtelComponent,
-		consul.ConsulComponent,
-		wireComponent,
+		config.ConfigComponent,   // 自动加载，无需手动选择
+		http.HttpComponent,       // 自动加载，无需手动选择
+		grpc.GrpcComponent,       // 需要手动选择才能添加的组件
+		common.CommonComponent,   // 自动加载，无需手动选择
+		storage.StorageComponent, // 需要手动选择才能添加的组件
+		tcp.TcpComponent,         // 需要手动选择才能添加的组件
+		otel.OtelComponent,       // 需要手动选择才能添加的组件
+		consul.ConsulComponent,   // 需要手动选择才能添加的组件
+		wireComponent,            // 自动加载，无需手动选择
 	}
 )
 

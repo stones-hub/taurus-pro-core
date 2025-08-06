@@ -17,6 +17,7 @@ import (
 	"{{.ProjectName}}/app/crontab"
 	"{{.ProjectName}}/app/hooks"
 	"{{.ProjectName}}/internal/taurus"
+	"github.com/stones-hub/taurus-pro-common/pkg/recovery"
 )
 
 // ANSI escape sequences define colors
@@ -88,6 +89,8 @@ func runCommand() {
 }
 
 func Run() {
+	// 全局panic恢复
+	defer recovery.GlobalPanicRecovery.Recover("bootstrap")
 
 	// 启动脚本命令
 	runCommand()
@@ -214,6 +217,9 @@ func init() {
 	}
 	cleanups = append(cleanups, cleanup)
 
+	// 注册框架panic恢复
+	 registerFrameworkPanicRecovery()
+
 	// 启动 hooks
 	if err := hooks.StartHook(); err != nil {
 		log.Printf("%s🔗 -> Hooks start failed: %v %s\n", Red, err, Reset)
@@ -326,4 +332,19 @@ func runPprofServer() {
 
 		===============================================================================
 	*/
+}
+
+func registerFrameworkPanicRecovery() {
+	err := recovery.GlobalPanicRecovery.AddHandler(&FrameworkPanicHandler{})
+	if err != nil {
+		log.Printf("%s🔗 -> Register framework panic recovery failed: %v %s\n", Red, err, Reset)
+	}
+}
+
+type FrameworkPanicHandler struct{}
+
+func (h *FrameworkPanicHandler) HandlePanic(info *recovery.PanicInfo) error {
+	taurus.Container.Logger.LError("panic", "🚨 [PANIC] [%s] Component: %s, Error: %v\nStack: %s",
+		info.Timestamp, info.Component, info.Error, info.Stack)
+	return nil
 }

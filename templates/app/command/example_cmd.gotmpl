@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -231,7 +230,7 @@ func init() {
 		},
 	)
 	if err != nil {
-		log.Printf("NewBaseCommand failed: %v\n", err)
+		fmt.Printf("NewBaseCommand failed: %v\n", err)
 		return
 	}
 	Register(&ExampleCommand{
