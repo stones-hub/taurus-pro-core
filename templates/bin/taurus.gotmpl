@@ -16,7 +16,9 @@ import (
 )
 
 func main() {
+	setGlobalTimezone()
 	pprof()
+	userRoutes()
 
 	taurus.Container.Http.AddRouter(router.Router{
 		Path:    "/home",
@@ -89,4 +91,214 @@ func setGlobalTimezone() {
 
 	log.Printf("✅ 全局时区已设置为上海时区 (Asia/Shanghai)")
 	log.Printf("📅 当前时间: %s", time.Now().Format("2006-01-02 15:04:05 MST"))
+}
+
+
+// userRoutes 注册所有User Controller的路由
+func userRoutes() {
+	// 基础CRUD操作
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/create",
+		Handler: http.HandlerFunc(app.Core.UserController.CreateUser),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/get",
+		Handler: http.HandlerFunc(app.Core.UserController.GetUserByID),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/getByName",
+		Handler: http.HandlerFunc(app.Core.UserController.GetUserByName),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/updateName",
+		Handler: http.HandlerFunc(app.Core.UserController.UpdateUserName),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/updatePassword",
+		Handler: http.HandlerFunc(app.Core.UserController.UpdateUserPassword),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/delete",
+		Handler: http.HandlerFunc(app.Core.UserController.DeleteUser),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 查询操作
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/all",
+		Handler: http.HandlerFunc(app.Core.UserController.GetAllUsers),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/page",
+		Handler: http.HandlerFunc(app.Core.UserController.GetUsersByPage),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/search",
+		Handler: http.HandlerFunc(app.Core.UserController.SearchUsers),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/count",
+		Handler: http.HandlerFunc(app.Core.UserController.GetUserCount),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/stats",
+		Handler: http.HandlerFunc(app.Core.UserController.GetUserStatistics),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 高级功能
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/like",
+		Handler: http.HandlerFunc(app.Core.UserController.GetUsersByNameLike),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/recent",
+		Handler: http.HandlerFunc(app.Core.UserController.GetRecentUsers),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/exists",
+		Handler: http.HandlerFunc(app.Core.UserController.UserExists),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/existsByName",
+		Handler: http.HandlerFunc(app.Core.UserController.UserExistsByName),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 批量操作
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/createBatch",
+		Handler: http.HandlerFunc(app.Core.UserController.CreateUsersBatch),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/deleteBatch",
+		Handler: http.HandlerFunc(app.Core.UserController.DeleteUsersBatch),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// SQL操作
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/executeSQL",
+		Handler: http.HandlerFunc(app.Core.UserController.ExecuteSQL),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/querySQL",
+		Handler: http.HandlerFunc(app.Core.UserController.QueryUsersBySQL),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 业务逻辑
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/user/createIfNotExists",
+		Handler: http.HandlerFunc(app.Core.UserController.CreateUserIfNotExists),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
 }

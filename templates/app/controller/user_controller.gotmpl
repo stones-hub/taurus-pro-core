@@ -1,0 +1,560 @@
+// Copyright (c) 2025 Taurus Team. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Author: yelei
+// Email: 61647649@qq.com
+// Date: 2025-08-06
+
+package controller
+
+import (
+	"{{.ProjectName}}/app/model"
+	"{{.ProjectName}}/app/service"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+// UserController 用户控制器
+type UserController struct {
+	UserService *service.UserService
+}
+
+// UserControllerSet wire provider set
+var UserControllerSet = wire.NewSet(wire.Struct(new(UserController), "*"))
+
+// ==================== 基础CRUD操作 ====================
+
+// CreateUser 创建用户
+func (c *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name     string `json:"name" form:"name"`
+		Password string `json:"password" form:"password"`
+	}
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		req.Name = r.FormValue("name")
+		req.Password = r.FormValue("password")
+	}
+
+	if req.Name == "" || req.Password == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名和密码不能为空"}, nil)
+		return
+	}
+
+	user, err := c.UserService.CreateUser(r.Context(), req.Name, req.Password)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "创建用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusCreated, user, nil)
+}
+
+// GetUserByID 根据ID获取用户
+func (c *UserController) GetUserByID(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID不能为空"}, nil)
+		return
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID格式错误: " + err.Error()}, nil)
+		return
+	}
+
+	user, err := c.UserService.GetUserByID(r.Context(), uint(id))
+	if err != nil {
+		httpx.SendResponse(w, http.StatusNotFound, map[string]string{"message": "用户不存在: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, user, nil)
+}
+
+// GetUserByName 根据用户名获取用户
+func (c *UserController) GetUserByName(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名不能为空"}, nil)
+		return
+	}
+
+	user, err := c.UserService.GetUserByName(r.Context(), name)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusNotFound, map[string]string{"message": "用户不存在: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, user, nil)
+}
+
+// UpdateUserName 更新用户名
+func (c *UserController) UpdateUserName(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID   uint   `json:"id" form:"id"`
+		Name string `json:"name" form:"name"`
+	}
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		if idStr := r.FormValue("id"); idStr != "" {
+			if id, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+				req.ID = uint(id)
+			}
+		}
+		req.Name = r.FormValue("name")
+	}
+
+	if req.Name == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "新用户名不能为空"}, nil)
+		return
+	}
+
+	err := c.UserService.UpdateUserName(r.Context(), req.ID, req.Name)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "更新用户名失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "用户名更新成功"}, nil)
+}
+
+// UpdateUserPassword 更新用户密码
+func (c *UserController) UpdateUserPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID       uint   `json:"id" form:"id"`
+		Password string `json:"password" form:"password"`
+	}
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		if idStr := r.FormValue("id"); idStr != "" {
+			if id, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+				req.ID = uint(id)
+			}
+		}
+		req.Password = r.FormValue("password")
+	}
+
+	if req.Password == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "新密码不能为空"}, nil)
+		return
+	}
+
+	err := c.UserService.UpdateUserPassword(r.Context(), req.ID, req.Password)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "更新密码失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "密码更新成功"}, nil)
+}
+
+// DeleteUser 删除用户
+func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID不能为空"}, nil)
+		return
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID格式错误: " + err.Error()}, nil)
+		return
+	}
+
+	err = c.UserService.DeleteUser(r.Context(), uint(id))
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "删除用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "用户删除成功"}, nil)
+}
+
+// ==================== 查询操作 ====================
+
+// GetAllUsers 获取所有用户
+func (c *UserController) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := c.UserService.GetAllUsers(r.Context())
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "获取用户列表失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, users, nil)
+}
+
+// GetUsersByPage 分页获取用户
+func (c *UserController) GetUsersByPage(w http.ResponseWriter, r *http.Request) {
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("pageSize")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 10
+	}
+
+	users, total, err := c.UserService.GetUsersByPage(r.Context(), page, pageSize)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "获取用户列表失败: " + err.Error()}, nil)
+		return
+	}
+
+	response := map[string]interface{}{
+		"users":     users,
+		"total":     total,
+		"page":      page,
+		"pageSize":  pageSize,
+		"totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+	}
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// SearchUsers 搜索用户
+func (c *UserController) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	keyword := r.URL.Query().Get("keyword")
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("pageSize")
+
+	if keyword == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "搜索关键词不能为空"}, nil)
+		return
+	}
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 10
+	}
+
+	users, total, err := c.UserService.SearchUsers(r.Context(), keyword, page, pageSize)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "搜索用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	response := map[string]interface{}{
+		"users":     users,
+		"total":     total,
+		"page":      page,
+		"pageSize":  pageSize,
+		"keyword":   keyword,
+		"totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+	}
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// GetUserCount 获取用户总数
+func (c *UserController) GetUserCount(w http.ResponseWriter, r *http.Request) {
+	count, err := c.UserService.GetUserCount(r.Context())
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "获取用户总数失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]int64{"count": count}, nil)
+}
+
+// GetUserStatistics 获取用户统计信息
+func (c *UserController) GetUserStatistics(w http.ResponseWriter, r *http.Request) {
+	stats, err := c.UserService.GetUserStatistics(r.Context())
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "获取用户统计信息失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, stats, nil)
+}
+
+// ==================== 高级功能 ====================
+
+// GetUsersByNameLike 根据用户名模糊查询
+func (c *UserController) GetUsersByNameLike(w http.ResponseWriter, r *http.Request) {
+	namePattern := r.URL.Query().Get("name")
+	if namePattern == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名模式不能为空"}, nil)
+		return
+	}
+
+	users, err := c.UserService.GetUsersByNameLike(r.Context(), namePattern)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "查询用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, users, nil)
+}
+
+// GetRecentUsers 获取最近创建的用户
+func (c *UserController) GetRecentUsers(w http.ResponseWriter, r *http.Request) {
+	daysStr := r.URL.Query().Get("days")
+	days := 7 // 默认7天
+
+	if daysStr != "" {
+		if d, err := strconv.Atoi(daysStr); err == nil && d > 0 {
+			days = d
+		}
+	}
+
+	users, err := c.UserService.GetRecentUsers(r.Context(), days)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "获取最近用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, users, nil)
+}
+
+// UserExists 检查用户是否存在
+func (c *UserController) UserExists(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID不能为空"}, nil)
+		return
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID格式错误: " + err.Error()}, nil)
+		return
+	}
+
+	exists, err := c.UserService.UserExists(r.Context(), uint(id))
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "检查用户存在性失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]bool{"exists": exists}, nil)
+}
+
+// UserExistsByName 根据用户名检查用户是否存在
+func (c *UserController) UserExistsByName(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名不能为空"}, nil)
+		return
+	}
+
+	exists, err := c.UserService.UserExistsByName(r.Context(), name)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "检查用户存在性失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]bool{"exists": exists}, nil)
+}
+
+// ==================== 批量操作 ====================
+
+// CreateUsersBatch 批量创建用户
+func (c *UserController) CreateUsersBatch(w http.ResponseWriter, r *http.Request) {
+	// 对于批量操作，我们简化处理，创建一些测试用户
+	users := []model.User{
+		{Name: "批量用户1", Password: "batch123"},
+		{Name: "批量用户2", Password: "batch456"},
+		{Name: "批量用户3", Password: "batch789"},
+	}
+
+	err := c.UserService.CreateUsersBatch(r.Context(), users)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "批量创建用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusCreated, map[string]string{"message": "批量创建用户成功"}, nil)
+}
+
+// DeleteUsersBatch 批量删除用户
+func (c *UserController) DeleteUsersBatch(w http.ResponseWriter, r *http.Request) {
+	// 从URL参数获取要删除的ID列表
+	idsStr := r.URL.Query().Get("ids")
+	if idsStr == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID列表不能为空"}, nil)
+		return
+	}
+
+	// 解析ID列表
+	var ids []uint
+	idStrs := strings.Split(idsStr, ",")
+	for _, idStr := range idStrs {
+		if id, err := strconv.ParseUint(strings.TrimSpace(idStr), 10, 32); err == nil {
+			ids = append(ids, uint(id))
+		}
+	}
+
+	if len(ids) == 0 {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "没有有效的用户ID"}, nil)
+		return
+	}
+
+	err := c.UserService.DeleteUsersBatch(r.Context(), ids)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "批量删除用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "批量删除用户成功"}, nil)
+}
+
+// ==================== SQL操作 ====================
+
+// ExecuteSQL 执行SQL语句
+func (c *UserController) ExecuteSQL(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SQL  string        `json:"sql" form:"sql"`
+		Args []interface{} `json:"args"`
+	}
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		req.SQL = r.FormValue("sql")
+	}
+
+	if req.SQL == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "SQL语句不能为空"}, nil)
+		return
+	}
+
+	err := c.UserService.ExecuteSQL(r.Context(), req.SQL, req.Args...)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "执行SQL失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "SQL执行成功"}, nil)
+}
+
+// QueryUsersBySQL 通过SQL查询用户
+func (c *UserController) QueryUsersBySQL(w http.ResponseWriter, r *http.Request) {
+	// 从URL参数获取SQL语句
+	sql := r.URL.Query().Get("sql")
+	if sql == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "SQL语句不能为空"}, nil)
+		return
+	}
+
+	results, err := c.UserService.QueryUsersBySQL(r.Context(), sql)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "查询失败: " + err.Error()}, nil)
+		return
+	}
+
+	httpx.SendResponse(w, http.StatusOK, results, nil)
+}
+
+// ==================== 业务逻辑 ====================
+
+// CreateUserIfNotExists 如果用户不存在则创建
+func (c *UserController) CreateUserIfNotExists(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name     string `json:"name" form:"name"`
+		Password string `json:"password" form:"password"`
+	}
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		req.Name = r.FormValue("name")
+		req.Password = r.FormValue("password")
+	}
+
+	if req.Name == "" || req.Password == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名和密码不能为空"}, nil)
+		return
+	}
+
+	user, err := c.UserService.CreateUserIfNotExists(r.Context(), req.Name, req.Password)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "创建用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	response := map[string]interface{}{
+		"user":    user,
+		"created": user.ID > 0,
+	}
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}

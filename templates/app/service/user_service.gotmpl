@@ -1,0 +1,296 @@
+// Copyright (c) 2025 Taurus Team. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Author: yelei
+// Email: 61647649@qq.com
+// Date: 2025-08-06
+
+package service
+
+import (
+	"context"
+	"{{.ProjectName}}/app/model"
+	"time"
+
+	"github.com/google/wire"
+	"gorm.io/gorm"
+)
+
+// UserService User服务，封装所有User相关的业务逻辑
+type UserService struct {
+	userRepo *model.UserRepository
+}
+
+// UserServiceSet wire provider set
+var UserServiceSet = wire.NewSet(NewUserService)
+
+// NewUserService 创建UserService实例
+func NewUserService() *UserService {
+	userRepo, err := model.NewUserRepository()
+	if err != nil {
+		panic("创建UserRepository失败: " + err.Error())
+	}
+	return &UserService{
+		userRepo: userRepo,
+	}
+}
+
+// ==================== 基础CRUD操作 ====================
+
+// CreateUser 创建用户
+func (s *UserService) CreateUser(ctx context.Context, name, password string) (*model.User, error) {
+	user := &model.User{
+		Name:     name,
+		Password: password,
+	}
+
+	err := s.userRepo.Create(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// GetUserByID 根据ID获取用户
+func (s *UserService) GetUserByID(ctx context.Context, id uint) (*model.User, error) {
+	return s.userRepo.FindByID(ctx, id)
+}
+
+// GetUserByName 根据用户名获取用户
+func (s *UserService) GetUserByName(ctx context.Context, name string) (*model.User, error) {
+	return s.userRepo.FindByName(ctx, name)
+}
+
+// UpdateUser 更新用户信息
+func (s *UserService) UpdateUser(ctx context.Context, user *model.User) error {
+	return s.userRepo.Update(ctx, user)
+}
+
+// UpdateUserName 更新用户名
+func (s *UserService) UpdateUserName(ctx context.Context, id uint, newName string) error {
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	user.Name = newName
+	return s.userRepo.Update(ctx, user)
+}
+
+// UpdateUserPassword 更新用户密码
+func (s *UserService) UpdateUserPassword(ctx context.Context, id uint, newPassword string) error {
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	user.Password = newPassword
+	return s.userRepo.Update(ctx, user)
+}
+
+// DeleteUser 删除用户
+func (s *UserService) DeleteUser(ctx context.Context, id uint) error {
+	return s.userRepo.DeleteByID(ctx, id)
+}
+
+// ==================== 查询操作 ====================
+
+// GetAllUsers 获取所有用户
+func (s *UserService) GetAllUsers(ctx context.Context) ([]model.User, error) {
+	return s.userRepo.FindAll(ctx)
+}
+
+// GetUsersByNameLike 根据用户名模糊查询
+func (s *UserService) GetUsersByNameLike(ctx context.Context, namePattern string) ([]model.User, error) {
+	return s.userRepo.FindByNameLike(ctx, namePattern)
+}
+
+// GetUsersByTimeRange 根据创建时间范围查询用户
+func (s *UserService) GetUsersByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]model.User, error) {
+	return s.userRepo.FindByCreatedTimeRange(ctx, startTime, endTime)
+}
+
+// GetUsersByCondition 根据条件查询用户
+func (s *UserService) GetUsersByCondition(ctx context.Context, condition interface{}, args ...interface{}) ([]model.User, error) {
+	return s.userRepo.FindByCondition(ctx, condition, args...)
+}
+
+// ==================== 分页查询 ====================
+
+// GetUsersWithPagination 分页查询用户
+func (s *UserService) GetUsersWithPagination(ctx context.Context, page, pageSize int, orderBy string, desc bool, condition interface{}, args ...interface{}) ([]model.User, int64, error) {
+	return s.userRepo.FindWithPagination(ctx, page, pageSize, orderBy, desc, condition, args...)
+}
+
+// GetUsersByPage 简单分页查询（按创建时间倒序）
+func (s *UserService) GetUsersByPage(ctx context.Context, page, pageSize int) ([]model.User, int64, error) {
+	return s.userRepo.FindWithPagination(ctx, page, pageSize, "created_at", true, nil)
+}
+
+// ==================== 统计操作 ====================
+
+// GetUserCount 获取用户总数
+func (s *UserService) GetUserCount(ctx context.Context) (int64, error) {
+	return s.userRepo.Count(ctx)
+}
+
+// GetUserCountByCondition 根据条件统计用户数量
+func (s *UserService) GetUserCountByCondition(ctx context.Context, condition interface{}, args ...interface{}) (int64, error) {
+	return s.userRepo.CountByCondition(ctx, condition, args...)
+}
+
+// ==================== 存在性检查 ====================
+
+// UserExists 检查用户是否存在
+func (s *UserService) UserExists(ctx context.Context, id uint) (bool, error) {
+	return s.userRepo.Exists(ctx, id)
+}
+
+// UserExistsByName 检查用户名是否存在
+func (s *UserService) UserExistsByName(ctx context.Context, name string) (bool, error) {
+	return s.userRepo.ExistsByCondition(ctx, "username = ?", name)
+}
+
+// ==================== 批量操作 ====================
+
+// CreateUsersBatch 批量创建用户
+func (s *UserService) CreateUsersBatch(ctx context.Context, users []model.User) error {
+	return s.userRepo.CreateBatch(ctx, users)
+}
+
+// UpdateUsersBatch 批量更新用户
+func (s *UserService) UpdateUsersBatch(ctx context.Context, users []model.User) error {
+	return s.userRepo.UpdateBatch(ctx, users)
+}
+
+// DeleteUsersBatch 批量删除用户
+func (s *UserService) DeleteUsersBatch(ctx context.Context, ids []uint) error {
+	return s.userRepo.DeleteBatch(ctx, ids)
+}
+
+// ==================== 原生SQL操作 ====================
+
+// ExecuteSQL 执行原生SQL
+func (s *UserService) ExecuteSQL(ctx context.Context, sql string, args ...interface{}) error {
+	return s.userRepo.Exec(ctx, sql, args...)
+}
+
+// QueryUsersBySQL 使用原生SQL查询用户
+func (s *UserService) QueryUsersBySQL(ctx context.Context, sql string, args ...interface{}) ([]map[string]interface{}, error) {
+	return s.userRepo.QueryToMap(ctx, sql, args...)
+}
+
+// QueryUsersBySQLWithPagination 使用原生SQL分页查询用户
+func (s *UserService) QueryUsersBySQLWithPagination(ctx context.Context, sql string, page, pageSize int, args ...interface{}) ([]map[string]interface{}, int64, error) {
+	return s.userRepo.QueryWithPagination(ctx, sql, page, pageSize, args...)
+}
+
+// ==================== 事务操作 ====================
+
+// CreateUserWithTransaction 在事务中创建用户
+func (s *UserService) CreateUserWithTransaction(ctx context.Context, name, password string) (*model.User, error) {
+	var user *model.User
+
+	err := s.userRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		user = &model.User{
+			Name:     name,
+			Password: password,
+		}
+
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdateUserWithTransaction 在事务中更新用户
+func (s *UserService) UpdateUserWithTransaction(ctx context.Context, user *model.User) error {
+	return s.userRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		return tx.Save(user).Error
+	})
+}
+
+// ==================== 业务逻辑方法 ====================
+
+// CreateUserIfNotExists 如果用户不存在则创建
+func (s *UserService) CreateUserIfNotExists(ctx context.Context, name, password string) (*model.User, error) {
+	// 检查用户是否已存在
+	exists, err := s.UserExistsByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if exists {
+		// 用户已存在，返回现有用户
+		return s.GetUserByName(ctx, name)
+	}
+
+	// 用户不存在，创建新用户
+	return s.CreateUser(ctx, name, password)
+}
+
+// GetRecentUsers 获取最近创建的用户
+func (s *UserService) GetRecentUsers(ctx context.Context, days int) ([]model.User, error) {
+	startTime := time.Now().AddDate(0, 0, -days)
+	return s.GetUsersByTimeRange(ctx, startTime, time.Now())
+}
+
+// SearchUsers 搜索用户（支持用户名模糊搜索）
+func (s *UserService) SearchUsers(ctx context.Context, keyword string, page, pageSize int) ([]model.User, int64, error) {
+	if keyword == "" {
+		return s.GetUsersByPage(ctx, page, pageSize)
+	}
+
+	return s.GetUsersWithPagination(ctx, page, pageSize, "created_at", true, "username LIKE ?", "%"+keyword+"%")
+}
+
+// GetUserStatistics 获取用户统计信息
+func (s *UserService) GetUserStatistics(ctx context.Context) (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// 总用户数
+	total, err := s.GetUserCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stats["total"] = total
+
+	// 今日新增用户数
+	today := time.Now().Truncate(24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
+	todayUsers, err := s.GetUsersByTimeRange(ctx, today, tomorrow)
+	if err != nil {
+		return nil, err
+	}
+	stats["today_new"] = len(todayUsers)
+
+	// 本周新增用户数
+	weekStart := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -int(time.Now().Weekday()))
+	weekUsers, err := s.GetUsersByTimeRange(ctx, weekStart, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	stats["week_new"] = len(weekUsers)
+
+	return stats, nil
+}

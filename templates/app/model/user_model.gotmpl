@@ -1,0 +1,93 @@
+// Copyright (c) 2025 Taurus Team. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Author: yelei
+// Email: 61647649@qq.com
+// Date: 2025-08-06
+
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// User 用户实体
+type User struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	Name      string    `gorm:"column:username;type:varchar(100);not null;comment:用户名" json:"name"`
+	Password  string    `gorm:"column:password_hash;type:varchar(255);not null;comment:密码" json:"-"`
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime;comment:创建时间" json:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime;comment:更新时间" json:"updated_at"`
+}
+
+// TableName 实现Entity接口 - 返回数据库表名
+func (u User) TableName() string {
+	return "users"
+}
+
+// DB 实现Entity接口 - 返回数据库连接实例
+func (u User) DB() *gorm.DB {
+	// 从taurus容器中获取默认数据库连接
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		// 如果默认数据库不存在，尝试获取第一个可用的数据库
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type UserRepository struct {
+	dao.Repository[User]
+}
+
+func NewUserRepositoryWithDB(db *gorm.DB) *UserRepository {
+	return &UserRepository{
+		Repository: dao.NewBaseRepository[User](db),
+	}
+}
+
+// NewUserRepository 创建User Repository实例
+func NewUserRepository() (*UserRepository, error) {
+	repo, err := dao.NewBaseRepositoryWithDB[User]()
+	if err != nil {
+		return nil, err
+	}
+	return &UserRepository{
+		Repository: repo,
+	}, nil
+}
+
+// 便捷方法 - 根据User结构体的实际字段定义
+// FindByName 根据用户名查找用户
+func (r *UserRepository) FindByName(ctx context.Context, name string) (*User, error) {
+	return r.FindOneByCondition(ctx, "username = ?", name)
+}
+
+// FindByNameLike 根据用户名模糊查找用户
+func (r *UserRepository) FindByNameLike(ctx context.Context, namePattern string) ([]User, error) {
+	return r.FindByCondition(ctx, "username LIKE ?", "%"+namePattern+"%")
+}
+
+// FindByCreatedTimeRange 根据创建时间范围查找用户
+func (r *UserRepository) FindByCreatedTimeRange(ctx context.Context, startTime, endTime time.Time) ([]User, error) {
+	return r.FindByCondition(ctx, "created_at BETWEEN ? AND ?", startTime, endTime)
+}

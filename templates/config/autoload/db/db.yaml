@@ -11,7 +11,7 @@ databases:
       retry_delay: 15                         # 重试延迟时间 秒
       log_path: "./logs/db/db.log"            # 日志路径
       log_level: "info"                       # 日志级别 info warn error silent
-      log_formatter: "json"                   # 日志格式 json/default
+      log_formatter: "default"                   # 日志格式 json/default
 
     - dbname: "kf_ai_test"
       dbtype: "mysql"
@@ -23,4 +23,4 @@ databases:
       retry_delay: 15                         # 重试延迟时间 秒
       log_path: "./logs/db/db.log"            # 日志路径
       log_level: "info"                       # 日志级别 info warn error silent
-      log_formatter: "json"                   # 日志格式 json/default
+      log_formatter: "default"                   # 日志格式 json/default
