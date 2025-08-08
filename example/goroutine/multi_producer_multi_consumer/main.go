@@ -264,6 +264,15 @@ func (p *Producer) produce() {
 			log.Printf("生产者 %d 收到context停止信号", p.id)
 			return
 		case <-ticker.C:
+			// 在发送数据前检查是否已经停止
+			p.mu.RLock()
+			if p.closed {
+				p.mu.RUnlock()
+				log.Printf("生产者 %d 检测到已停止标记，退出生产循环", p.id)
+				return
+			}
+			p.mu.RUnlock()
+
 			startTime := time.Now()
 			if err := p.sendData(counter); err != nil {
 				log.Printf("生产者 %d 发送数据失败: %v", p.id, err)
