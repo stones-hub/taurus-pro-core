@@ -25,6 +25,9 @@ type Producer struct {
 	metrics           *ProducerMetrics
 	processingTimes   []time.Duration
 	processingTimesMu sync.RWMutex
+
+	// 专属停止channel
+	stopCh chan struct{}
 }
 
 // Consumer 消费者结构体
@@ -42,6 +45,9 @@ type Consumer struct {
 	metrics           *ConsumerMetrics
 	processingTimes   []time.Duration
 	processingTimesMu sync.RWMutex
+
+	// 专属停止channel
+	stopCh chan struct{}
 }
 
 // ProducerStats 生产者统计信息
@@ -129,6 +135,7 @@ func NewProducer(id int, ctx context.Context, dataCh chan int) *Producer {
 		dataCh:  dataCh,
 		stats:   &ProducerStats{startTime: time.Now()},
 		metrics: &ProducerMetrics{},
+		stopCh:  make(chan struct{}),
 	}
 }
 
@@ -142,6 +149,7 @@ func NewConsumer(id int, ctx context.Context, dataCh chan int) *Consumer {
 		dataCh:  dataCh,
 		stats:   &ConsumerStats{startTime: time.Now()},
 		metrics: &ConsumerMetrics{},
+		stopCh:  make(chan struct{}),
 	}
 }
 
@@ -151,7 +159,7 @@ func (p *Producer) Start() {
 	go p.produce()
 }
 
-// Stop 停止生产者 - 完全修复版本
+// Stop 停止生产者 - 使用专属停止channel
 func (p *Producer) Stop() {
 	p.mu.Lock()
 	if p.closed {
@@ -161,7 +169,8 @@ func (p *Producer) Stop() {
 	p.closed = true
 	p.mu.Unlock()
 
-	p.cancel()
+	// 发送停止信号到专属channel
+	close(p.stopCh)
 
 	// 等待协程完成，带超时
 	done := make(chan struct{})
@@ -231,7 +240,7 @@ func (p *Producer) recordSendTime(duration time.Duration) {
 	p.processingTimes = append(p.processingTimes, duration)
 }
 
-// produce 生产数据 - 完全修复版本
+// produce 生产数据 - 使用专属停止channel
 func (p *Producer) produce() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -248,8 +257,11 @@ func (p *Producer) produce() {
 
 	for {
 		select {
+		case <-p.stopCh:
+			log.Printf("生产者 %d 收到专属停止信号", p.id)
+			return
 		case <-p.ctx.Done():
-			log.Printf("生产者 %d 收到停止信号", p.id)
+			log.Printf("生产者 %d 收到context停止信号", p.id)
 			return
 		case <-ticker.C:
 			startTime := time.Now()
@@ -271,6 +283,8 @@ func (p *Producer) sendData(data int) error {
 	case p.dataCh <- data:
 		log.Printf("生产者 %d 发送数据: %d", p.id, data)
 		return nil
+	case <-p.stopCh:
+		return context.Canceled
 	case <-p.ctx.Done():
 		return context.Canceled
 	case <-time.After(1 * time.Second):
@@ -284,7 +298,7 @@ func (c *Consumer) Start() {
 	go c.consume()
 }
 
-// Stop 停止消费者 - 完全修复版本
+// Stop 停止消费者 - 使用专属停止channel
 func (c *Consumer) Stop() {
 	c.mu.Lock()
 	if c.closed {
@@ -294,7 +308,8 @@ func (c *Consumer) Stop() {
 	c.closed = true
 	c.mu.Unlock()
 
-	c.cancel()
+	// 发送停止信号到专属channel
+	close(c.stopCh)
 
 	// 等待协程完成，带超时
 	done := make(chan struct{})
@@ -365,7 +380,7 @@ func (c *Consumer) recordProcessTime(duration time.Duration) {
 	c.processingTimes = append(c.processingTimes, duration)
 }
 
-// consume 消费数据 - 完全修复版本
+// consume 消费数据 - 使用专属停止channel
 func (c *Consumer) consume() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -378,8 +393,11 @@ func (c *Consumer) consume() {
 
 	for {
 		select {
+		case <-c.stopCh:
+			log.Printf("消费者 %d 收到专属停止信号", c.id)
+			return
 		case <-c.ctx.Done():
-			log.Printf("消费者 %d 收到停止信号", c.id)
+			log.Printf("消费者 %d 收到context停止信号", c.id)
 			return
 		case data, ok := <-c.dataCh:
 			if !ok {
@@ -400,7 +418,7 @@ func (c *Consumer) consume() {
 	}
 }
 
-// processData 处理数据，带超时控制 - 完全修复版本
+// processData 处理数据，带超时控制 - 使用专属停止channel
 func (c *Consumer) processData(data int) error {
 	// 创建带超时的上下文
 	ctx, cancel := context.WithTimeout(c.ctx, 2*time.Second)
@@ -416,6 +434,8 @@ func (c *Consumer) processData(data int) error {
 	}()
 
 	select {
+	case <-c.stopCh:
+		return context.Canceled
 	case <-ctx.Done():
 		atomic.AddInt64(&c.stats.timeoutCount, 1)
 		return ctx.Err()
@@ -486,6 +506,9 @@ func (sm *SystemManager) Start() error {
 func (sm *SystemManager) Stop() error {
 	log.Println("开始停止系统...")
 
+	// 首先取消context，通知所有协程停止
+	sm.cancel()
+
 	// 停止所有生产者
 	for _, producer := range sm.producers {
 		if producer != nil {
@@ -510,6 +533,54 @@ func (sm *SystemManager) Stop() error {
 
 	log.Println("系统已停止")
 	return nil
+}
+
+// StopProducer 停止指定的生产者
+func (sm *SystemManager) StopProducer(id int) error {
+	if id < 1 || id > len(sm.producers) {
+		return fmt.Errorf("无效的生产者ID: %d", id)
+	}
+
+	producer := sm.producers[id-1]
+	if producer != nil {
+		log.Printf("停止生产者 %d", id)
+		producer.Stop()
+	}
+	return nil
+}
+
+// StopConsumer 停止指定的消费者
+func (sm *SystemManager) StopConsumer(id int) error {
+	if id < 1 || id > len(sm.consumers) {
+		return fmt.Errorf("无效的消费者ID: %d", id)
+	}
+
+	consumer := sm.consumers[id-1]
+	if consumer != nil {
+		log.Printf("停止消费者 %d", id)
+		consumer.Stop()
+	}
+	return nil
+}
+
+// StopAllProducers 停止所有生产者
+func (sm *SystemManager) StopAllProducers() {
+	log.Println("停止所有生产者...")
+	for _, producer := range sm.producers {
+		if producer != nil {
+			producer.Stop()
+		}
+	}
+}
+
+// StopAllConsumers 停止所有消费者
+func (sm *SystemManager) StopAllConsumers() {
+	log.Println("停止所有消费者...")
+	for _, consumer := range sm.consumers {
+		if consumer != nil {
+			consumer.Stop()
+		}
+	}
 }
 
 // monitor 监控协程
@@ -754,13 +825,16 @@ func main() {
 	}
 
 	// 定期打印指标和健康状态
+	metricsDone := make(chan struct{})
 	go func() {
+		defer close(metricsDone)
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-manager.ctx.Done():
+				log.Println("指标监控协程收到停止信号")
 				return
 			case <-ticker.C:
 				manager.PrintMetrics()
@@ -774,13 +848,47 @@ func main() {
 		}
 	}()
 
-	// 运行一段时间后停止
-	time.Sleep(5 * time.Second)
+	// 运行一段时间后演示单独停止功能
+	time.Sleep(3 * time.Second)
+
+	// 演示单独停止功能
+	log.Println("=== 演示单独停止功能 ===")
+
+	// 停止第一个生产者
+	if err := manager.StopProducer(1); err != nil {
+		log.Printf("停止生产者1失败: %v", err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// 停止第一个消费者
+	if err := manager.StopConsumer(1); err != nil {
+		log.Printf("停止消费者1失败: %v", err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// 停止所有生产者
+	manager.StopAllProducers()
+
+	time.Sleep(1 * time.Second)
+
+	// 停止所有消费者
+	manager.StopAllConsumers()
+
 	log.Println("开始停止所有协程...")
 
 	// 停止系统
 	if err := manager.Stop(); err != nil {
 		log.Printf("停止系统失败: %v", err)
+	}
+
+	// 等待指标监控协程完成
+	select {
+	case <-metricsDone:
+		log.Println("指标监控协程已停止")
+	case <-time.After(5 * time.Second):
+		log.Println("等待指标监控协程停止超时")
 	}
 
 	// 打印最终指标
