@@ -28,6 +28,129 @@ type Producer struct {
 
 	// 专属停止channel
 	stopCh chan struct{}
+
+	// 企业级增强字段
+	config            *ProducerConfig
+	retryCount        int64
+	backpressureLimit int
+	rateLimiter       *time.Ticker
+}
+
+// ProducerConfig 生产者配置
+type ProducerConfig struct {
+	ID                int
+	RateLimit         time.Duration
+	RetryAttempts     int
+	BackpressureLimit int
+	EnableEncryption  bool
+	EnableAudit       bool
+}
+
+// CircuitBreaker 熔断器状态
+type CircuitBreakerState int
+
+const (
+	CircuitBreakerClosed   CircuitBreakerState = iota // 关闭状态：正常工作
+	CircuitBreakerOpen                                // 开启状态：快速失败
+	CircuitBreakerHalfOpen                            // 半开状态：尝试恢复
+)
+
+// CircuitBreaker 熔断器
+type CircuitBreaker struct {
+	state           CircuitBreakerState
+	failureCount    int64
+	successCount    int64
+	lastFailureTime time.Time
+	mu              sync.RWMutex
+
+	// 配置参数
+	failureThreshold int64         // 失败阈值
+	timeout          time.Duration // 熔断时间
+	successThreshold int64         // 成功阈值（半开状态）
+}
+
+// NewCircuitBreaker 创建熔断器
+func NewCircuitBreaker(failureThreshold int64, timeout time.Duration, successThreshold int64) *CircuitBreaker {
+	return &CircuitBreaker{
+		state:            CircuitBreakerClosed,
+		failureThreshold: failureThreshold,
+		timeout:          timeout,
+		successThreshold: successThreshold,
+	}
+}
+
+// CanExecute 检查是否可以执行
+func (cb *CircuitBreaker) CanExecute() bool {
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
+
+	switch cb.state {
+	case CircuitBreakerClosed:
+		return true
+	case CircuitBreakerOpen:
+		// 检查是否超时，可以进入半开状态
+		if time.Since(cb.lastFailureTime) > cb.timeout {
+			cb.mu.RUnlock()
+			cb.mu.Lock()
+			cb.state = CircuitBreakerHalfOpen
+			cb.mu.Unlock()
+			cb.mu.RLock()
+			return true
+		}
+		return false
+	case CircuitBreakerHalfOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// OnSuccess 记录成功
+func (cb *CircuitBreaker) OnSuccess() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	switch cb.state {
+	case CircuitBreakerClosed:
+		// 重置失败计数
+		cb.failureCount = 0
+	case CircuitBreakerHalfOpen:
+		cb.successCount++
+		if cb.successCount >= cb.successThreshold {
+			// 恢复到关闭状态
+			cb.state = CircuitBreakerClosed
+			cb.failureCount = 0
+			cb.successCount = 0
+		}
+	}
+}
+
+// OnFailure 记录失败
+func (cb *CircuitBreaker) OnFailure() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	cb.failureCount++
+	cb.lastFailureTime = time.Now()
+
+	switch cb.state {
+	case CircuitBreakerClosed:
+		if cb.failureCount >= cb.failureThreshold {
+			// 进入开启状态
+			cb.state = CircuitBreakerOpen
+		}
+	case CircuitBreakerHalfOpen:
+		// 半开状态下失败，立即回到开启状态
+		cb.state = CircuitBreakerOpen
+		cb.successCount = 0
+	}
+}
+
+// GetState 获取当前状态
+func (cb *CircuitBreaker) GetState() CircuitBreakerState {
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
+	return cb.state
 }
 
 // Consumer 消费者结构体
@@ -48,6 +171,9 @@ type Consumer struct {
 
 	// 专属停止channel
 	stopCh chan struct{}
+
+	// 熔断器
+	circuitBreaker *CircuitBreaker
 }
 
 // ProducerStats 生产者统计信息
@@ -78,13 +204,14 @@ type ProducerMetrics struct {
 
 // ConsumerMetrics 消费者指标
 type ConsumerMetrics struct {
-	MemoryUsage        uint64
-	MemoryHeapInuse    uint64
-	GoroutineCount     int
-	QueueSize          int
-	AverageProcessTime time.Duration
-	LastProcessTime    time.Duration
-	Uptime             time.Duration
+	MemoryUsage         uint64
+	MemoryHeapInuse     uint64
+	GoroutineCount      int
+	QueueSize           int
+	AverageProcessTime  time.Duration
+	LastProcessTime     time.Duration
+	Uptime              time.Duration
+	CircuitBreakerState CircuitBreakerState // 熔断器状态
 }
 
 // SystemMetrics 系统指标
@@ -126,16 +253,29 @@ type HealthStatus struct {
 }
 
 // NewProducer 创建生产者
-func NewProducer(id int, ctx context.Context, dataCh chan int) *Producer {
+func NewProducer(id int, ctx context.Context, dataCh chan int, config *ProducerConfig) *Producer {
 	ctx, cancel := context.WithCancel(ctx)
+	if config == nil {
+		config = &ProducerConfig{
+			ID:                id,
+			RateLimit:         100 * time.Millisecond,
+			RetryAttempts:     3,
+			BackpressureLimit: 100,
+			EnableEncryption:  false,
+			EnableAudit:       true,
+		}
+	}
 	return &Producer{
-		id:      id,
-		ctx:     ctx,
-		cancel:  cancel,
-		dataCh:  dataCh,
-		stats:   &ProducerStats{startTime: time.Now()},
-		metrics: &ProducerMetrics{},
-		stopCh:  make(chan struct{}),
+		id:                id,
+		ctx:               ctx,
+		cancel:            cancel,
+		dataCh:            dataCh,
+		stats:             &ProducerStats{startTime: time.Now()},
+		metrics:           &ProducerMetrics{},
+		stopCh:            make(chan struct{}),
+		config:            config,
+		backpressureLimit: config.BackpressureLimit,
+		rateLimiter:       time.NewTicker(config.RateLimit),
 	}
 }
 
@@ -143,13 +283,14 @@ func NewProducer(id int, ctx context.Context, dataCh chan int) *Producer {
 func NewConsumer(id int, ctx context.Context, dataCh chan int) *Consumer {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Consumer{
-		id:      id,
-		ctx:     ctx,
-		cancel:  cancel,
-		dataCh:  dataCh,
-		stats:   &ConsumerStats{startTime: time.Now()},
-		metrics: &ConsumerMetrics{},
-		stopCh:  make(chan struct{}),
+		id:             id,
+		ctx:            ctx,
+		cancel:         cancel,
+		dataCh:         dataCh,
+		stats:          &ConsumerStats{startTime: time.Now()},
+		metrics:        &ConsumerMetrics{},
+		stopCh:         make(chan struct{}),
+		circuitBreaker: NewCircuitBreaker(5, 10*time.Second, 3), // 5次失败后熔断，10秒后尝试恢复，3次成功恢复
 	}
 }
 
@@ -286,19 +427,42 @@ func (p *Producer) produce() {
 	}
 }
 
-// sendData 发送数据，带超时和错误处理
+// sendData 发送数据，带超时、错误处理、背压控制和重试机制
 func (p *Producer) sendData(data int) error {
-	select {
-	case p.dataCh <- data:
-		log.Printf("生产者 %d 发送数据: %d", p.id, data)
-		return nil
-	case <-p.stopCh:
-		return context.Canceled
-	case <-p.ctx.Done():
-		return context.Canceled
-	case <-time.After(1 * time.Second):
-		return context.DeadlineExceeded
+	// 背压控制：检查队列大小
+	if len(p.dataCh) >= p.backpressureLimit {
+		log.Printf("生产者 %d 检测到背压，队列大小: %d", p.id, len(p.dataCh))
+		return fmt.Errorf("背压限制: 队列已满")
 	}
+
+	// 审计日志
+	if p.config.EnableAudit {
+		log.Printf("生产者 %d 审计: 准备发送数据 %d", p.id, data)
+	}
+
+	// 重试机制
+	for attempt := 0; attempt <= p.config.RetryAttempts; attempt++ {
+		select {
+		case p.dataCh <- data:
+			if p.config.EnableAudit {
+				log.Printf("生产者 %d 审计: 成功发送数据 %d (尝试 %d)", p.id, data, attempt+1)
+			}
+			log.Printf("生产者 %d 发送数据: %d", p.id, data)
+			return nil
+		case <-p.stopCh:
+			return context.Canceled
+		case <-p.ctx.Done():
+			return context.Canceled
+		case <-time.After(1 * time.Second):
+			if attempt < p.config.RetryAttempts {
+				log.Printf("生产者 %d 发送超时，重试 %d/%d", p.id, attempt+1, p.config.RetryAttempts)
+				atomic.AddInt64(&p.retryCount, 1)
+				continue
+			}
+			return context.DeadlineExceeded
+		}
+	}
+	return fmt.Errorf("发送失败，已重试 %d 次", p.config.RetryAttempts)
 }
 
 // Start 启动消费者
@@ -363,6 +527,7 @@ func (c *Consumer) updateMetrics() {
 	c.metrics.GoroutineCount = runtime.NumGoroutine()
 	c.metrics.QueueSize = len(c.dataCh)
 	c.metrics.Uptime = time.Since(c.stats.startTime)
+	c.metrics.CircuitBreakerState = c.circuitBreaker.GetState()
 
 	// 计算平均处理时间
 	c.processingTimesMu.RLock()
@@ -389,12 +554,13 @@ func (c *Consumer) recordProcessTime(duration time.Duration) {
 	c.processingTimes = append(c.processingTimes, duration)
 }
 
-// consume 消费数据 - 使用专属停止channel
+// consume 消费数据 - 使用专属停止channel和熔断机制
 func (c *Consumer) consume() {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("消费者 %d 发生panic: %v", c.id, r)
 			atomic.AddInt64(&c.stats.errorCount, 1)
+			c.circuitBreaker.OnFailure()
 		}
 		c.wg.Done()
 		log.Printf("消费者 %d 已停止", c.id)
@@ -414,20 +580,30 @@ func (c *Consumer) consume() {
 				return
 			}
 
+			// 检查熔断器状态
+			if !c.circuitBreaker.CanExecute() {
+				state := c.circuitBreaker.GetState()
+				log.Printf("消费者 %d 熔断器状态: %v，跳过处理数据: %d", c.id, state, data)
+				atomic.AddInt64(&c.stats.errorCount, 1)
+				continue
+			}
+
 			// 处理数据，带超时控制
 			startTime := time.Now()
 			if err := c.processData(data); err != nil {
 				log.Printf("消费者 %d 处理数据失败: %v", c.id, err)
 				atomic.AddInt64(&c.stats.errorCount, 1)
+				c.circuitBreaker.OnFailure()
 			} else {
 				atomic.AddInt64(&c.stats.processedCount, 1)
+				c.circuitBreaker.OnSuccess()
 			}
 			c.recordProcessTime(time.Since(startTime))
 		}
 	}
 }
 
-// processData 处理数据，带超时控制 - 使用专属停止channel
+// processData 处理数据，带超时控制和故障模拟 - 使用专属停止channel
 func (c *Consumer) processData(data int) error {
 	// 创建带超时的上下文
 	ctx, cancel := context.WithTimeout(c.ctx, 2*time.Second)
@@ -438,6 +614,14 @@ func (c *Consumer) processData(data int) error {
 		defer close(done)
 		// 模拟处理时间
 		time.Sleep(time.Duration(50+c.id*20) * time.Millisecond)
+
+		// 模拟故障：消费者2在处理特定数据时失败
+		if c.id == 2 && data%7 == 0 {
+			log.Printf("消费者 %d 模拟处理失败: %d", c.id, data)
+			done <- fmt.Errorf("模拟处理失败")
+			return
+		}
+
 		log.Printf("消费者 %d 处理数据: %d", c.id, data)
 		done <- nil
 	}()
@@ -488,7 +672,15 @@ func (sm *SystemManager) Start() error {
 	// 创建多个生产者
 	sm.producers = make([]*Producer, 3)
 	for i := 0; i < 3; i++ {
-		sm.producers[i] = NewProducer(i+1, sm.ctx, dataCh)
+		config := &ProducerConfig{
+			ID:                i + 1,
+			RateLimit:         time.Duration(100+i*30) * time.Millisecond,
+			RetryAttempts:     3,
+			BackpressureLimit: 100,
+			EnableEncryption:  false,
+			EnableAudit:       true,
+		}
+		sm.producers[i] = NewProducer(i+1, sm.ctx, dataCh, config)
 		sm.producers[i].Start()
 	}
 
@@ -817,8 +1009,15 @@ func (sm *SystemManager) PrintMetrics() {
 	for _, consumer := range sm.consumers {
 		if consumer != nil {
 			metrics := consumer.GetMetrics()
-			log.Printf("消费者 %d 指标: 队列大小 %d, 平均处理时间 %v",
-				consumer.id, metrics.QueueSize, metrics.AverageProcessTime)
+			stateStr := "Closed"
+			switch metrics.CircuitBreakerState {
+			case CircuitBreakerOpen:
+				stateStr = "Open"
+			case CircuitBreakerHalfOpen:
+				stateStr = "HalfOpen"
+			}
+			log.Printf("消费者 %d 指标: 队列大小 %d, 平均处理时间 %v, 熔断器状态 %s",
+				consumer.id, metrics.QueueSize, metrics.AverageProcessTime, stateStr)
 		}
 	}
 }
