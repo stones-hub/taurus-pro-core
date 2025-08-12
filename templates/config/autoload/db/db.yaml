@@ -4,9 +4,9 @@ databases:
     - dbname: "${DB_NAME:kf_ai_demo}"         # 数据库名称(标记, 用于创建多个数据库实例)
       dbtype: "mysql"                         # 数据库类型 (postgres, mysql, sqlite)
       dsn: "${DB_DSN:apps_demo:apps_demo@tcp(db_demo:3306)/kf_ai_demo?charset=utf8mb4&parseTime=True&loc=Local}"  # 可选，直接提供完整的 DSN 字符串（优先级高于其他字段）
-      max_open_conns: 100                     # 最大连接数
-      max_idle_conns: 10                      # 最大空闲连接数
-      conn_max_lifetime: 300                  # 连接最大生命周期 秒 
+      max_open_conns: 500                     # 最大连接数
+      max_idle_conns: 50                      # 最大空闲连接数
+      conn_max_lifetime: 600                  # 连接最大生命周期 秒 
       max_retries: 10                         # 最大重试次数
       retry_delay: 15                         # 重试延迟时间 秒
       log_path: "./logs/db/db.log"            # 日志路径
@@ -16,9 +16,9 @@ databases:
     - dbname: "kf_ai_test"
       dbtype: "mysql"
       dsn: "${DB_DSN:apps_demo:apps_demo@tcp(db_demo:3306)/kf_ai_demo?charset=utf8mb4&parseTime=True&loc=Local}"
-      max_open_conns: 100                     # 最大连接数
-      max_idle_conns: 10                      # 最大空闲连接数
-      conn_max_lifetime: 300                  # 连接最大生命周期 秒
+      max_open_conns: 500                     # 最大连接数
+      max_idle_conns: 50                      # 最大空闲连接数
+      conn_max_lifetime: 600                  # 连接最大生命周期 秒
       max_retries: 10                         # 最大重试次数
       retry_delay: 15                         # 重试延迟时间 秒
       log_path: "./logs/db/db.log"            # 日志路径
