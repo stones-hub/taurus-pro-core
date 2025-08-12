@@ -359,7 +359,7 @@ func setGoConfig() {
 	// 设置最大cpu核心数
 	runtime.GOMAXPROCS(taurus.Container.Config.GetInt("go.max_procs"))
 	// 设置内存限制
-	debug.SetMemoryLimit(int64(taurus.Container.Config.GetInt("go.memory_limit")) * 1024 * 1024)
+	debug.SetMemoryLimit(int64(taurus.Container.Config.GetInt("go.memory_limit")) * 1024 * 1024 * 1024)
 	// 设置垃圾回收比例
 	debug.SetGCPercent(taurus.Container.Config.GetInt("go.gc"))
 }
