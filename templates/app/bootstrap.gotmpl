@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"runtime"
+	"runtime/debug"
 
 	"{{.ProjectName}}/app/command"
 	"{{.ProjectName}}/app/crontab"
@@ -209,6 +211,9 @@ func init() {
 	}
 	cleanups = append(cleanups, cleanup)
 
+	// 设置Go相关配置
+	setGoConfig()
+
 	// initialize project modules
 	Core, cleanup, err = buildInjector()
 
@@ -347,4 +352,14 @@ func (h *FrameworkPanicHandler) HandlePanic(info *recovery.PanicInfo) error {
 	taurus.Container.Logger.LError("panic", "🚨 [PANIC] [%s] Component: %s, Error: %v\nStack: %s",
 		info.Timestamp, info.Component, info.Error, info.Stack)
 	return nil
+}
+
+
+func setGoConfig() {
+	// 设置最大cpu核心数
+	runtime.GOMAXPROCS(taurus.Container.Config.GetInt("go.max_procs"))
+	// 设置内存限制
+	debug.SetMemoryLimit(int64(taurus.Container.Config.GetInt("go.memory_limit")) * 1024 * 1024)
+	// 设置垃圾回收比例
+	debug.SetGCPercent(taurus.Container.Config.GetInt("go.gc"))
 }

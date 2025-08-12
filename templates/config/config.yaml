@@ -2,3 +2,7 @@
 version: "${VERSION:v1.0.0}"
 app_name: "${APP_NAME:taurus}"
 pprof_enabled: true
+go:
+  max_procs: 8 # 最大cpu核心数
+  gc: 150 # 垃圾回收比例
+  memory_limit: 1024 # 内存限制 单位MB
