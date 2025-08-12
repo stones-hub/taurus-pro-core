@@ -17,6 +17,7 @@ func ProvideHttpComponent(cfg *config.Config) (*server.Server, error) {
 		server.WithReadTimeout(time.Duration(cfg.GetInt("http.read_timeout"))*time.Second),
 		server.WithWriteTimeout(time.Duration(cfg.GetInt("http.write_timeout"))*time.Second),
 		server.WithIdleTimeout(time.Duration(cfg.GetInt("http.idle_timeout"))*time.Second),
+		server.WithMaxHeaderBytes(1<<20),
 	)
 
 	if cfg.GetBool("websocket.enable") {
@@ -40,6 +41,7 @@ server.WithAddr(cfg.GetString("http.address")+":"+cfg.GetString("http.port")),
 server.WithReadTimeout(time.Duration(cfg.GetInt("http.read_timeout"))*time.Second),
 server.WithWriteTimeout(time.Duration(cfg.GetInt("http.write_timeout"))*time.Second),
 server.WithIdleTimeout(time.Duration(cfg.GetInt("http.idle_timeout"))*time.Second),
+server.WithMaxHeaderBytes(1<<20),
 )
 
 if cfg.GetBool("websocket.enable") {
@@ -120,7 +122,7 @@ var mcpWire = &types.Wire{
 var HttpComponent = types.Component{
 	Name:         "http",
 	Package:      "github.com/stones-hub/taurus-pro-http",
-	Version:      "v0.0.14",
+	Version:      "v0.0.15",
 	Description:  "Http,WebSocket服务器组件",
 	IsCustom:     true,
 	Required:     true,

@@ -288,6 +288,8 @@ github.com/stones-hub/taurus-pro-grpc v0.0.1 h1:09VNioQBrlVil310aPKMYV7is41VLQxF
 github.com/stones-hub/taurus-pro-grpc v0.0.1/go.mod h1:aEnQmPECzKutsN8iQJ75tzHQO/GSx/uQCUuWmtbQGA4=
 github.com/stones-hub/taurus-pro-http v0.0.7 h1:ghQSl5wMAivpHS3KOYEiHWX8wJn2MN7qyWLHNOnT4dQ=
 github.com/stones-hub/taurus-pro-http v0.0.7/go.mod h1:aDOI3gLD2BS2sZGS+y2nQpBArNC7LDafIehbAa6nrt4=
+github.com/stones-hub/taurus-pro-http v0.0.15 h1:Yk0b6jmko1Oo3Kz9Sn/4TfU9LiNBvcfH39aX0+05jIg=
+github.com/stones-hub/taurus-pro-http v0.0.15/go.mod h1:aDOI3gLD2BS2sZGS+y2nQpBArNC7LDafIehbAa6nrt4=
 github.com/stones-hub/taurus-pro-opentelemetry v0.0.1 h1:OQzO6/r32aubrv7/Cqgja/JwiQqPMWKKQFmaOpsCs8Y=
 github.com/stones-hub/taurus-pro-opentelemetry v0.0.1/go.mod h1:sw+jTrQTMcirAO1L0bgv/tPLRt3B47JthBbOzR3pl4c=
 github.com/stones-hub/taurus-pro-storage v0.0.8 h1:ICkN2GQDP8Ap+MUC33aWfmzltTJeO1htZKS0hAbcrwY=

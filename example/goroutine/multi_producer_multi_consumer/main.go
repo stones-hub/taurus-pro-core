@@ -462,7 +462,7 @@ func (p *Producer) sendData(data int) error {
 			return context.DeadlineExceeded
 		}
 	}
-	// return fmt.Errorf("发送失败，已重试 %d 次", p.config.RetryAttempts)
+	return fmt.Errorf("发送失败，已重试 %d 次", p.config.RetryAttempts)
 }
 
 // Start 启动消费者
