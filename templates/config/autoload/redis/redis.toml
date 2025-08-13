@@ -38,7 +38,7 @@ max_retries = 3
 logger_fomatter = "default"
 
 # 日志地址
-logger_path = "./logs/redis/reids.log"
+logger_path = "./logs/redis/redis.log"
 
 # 日志等级 [debug/warn/info/error]
 logger_level = "info"
