@@ -33,3 +33,21 @@ write_timeout = 3
 # 最大重试次数
 # 在操作失败时，客户端重试的最大次数
 max_retries = 3
+
+# 日志格式 [default/json]
+logger_fomatter = "default"
+
+# 日志地址
+logger_path = "./logs/redis/reids.log"
+
+# 日志等级 [debug/warn/info/error]
+logger_level = "info"
+
+# 单个日志的大小 单位 mb
+logger_max_size = 100
+
+# 旧文件保存的数量
+logger_max_backups = 10
+
+# 文件最大保留的天数
+logger_max_age = 7

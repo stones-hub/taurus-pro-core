@@ -18,10 +18,39 @@ func ProvideRedisComponent(cfg *config.Config) (*redisx.RedisClient, func(), err
 
 	address := cfg.GetStringSlice("redis.address")
 
+	levelStr := cfg.GetString("redis.logger_level")
+	level := redisx.LogLevelInfo
+	switch levelStr {
+	case "debug":
+		level = redisx.LogLevelDebug
+	case "info":
+		level = redisx.LogLevelInfo
+	case "warn":
+		level = redisx.LogLevelWarn
+	case "error":
+		level = redisx.LogLevelError
+	default:
+		level = redisx.LogLevelInfo
+	}
+
+	formatterStr := cfg.GetString("redis.logger_fomatter")
+	formatter := redisx.JSONLogFormatter
+	switch formatterStr {
+	case "default":
+		formatter = redisx.DefaultLogFormatter
+	case "json":
+		formatter = redisx.JSONLogFormatter
+	default:
+		formatter = redisx.DefaultLogFormatter
+	}
+
 	logger, err := redisx.NewRedisLogger(
-		redisx.WithLogFilePath("./logs/redis/redis.log"),
-		redisx.WithLogLevel(redisx.LogLevelInfo),
-		redisx.WithLogFormatter(redisx.JSONLogFormatter),
+		redisx.WithLogFilePath(cfg.GetString("redis.logger_path")),
+		redisx.WithLogLevel(level),
+		redisx.WithLogFormatter(formatter),
+		redisx.WithLogMaxSize(cfg.GetInt("redis.logger_max_size")),
+		redisx.WithLogMaxBackups(cfg.GetInt("redis.logger_max_backups")),
+		redisx.WithLogMaxAge(cfg.GetInt("redis.logger_max_age")),
 	)
 	if err != nil {
 		return nil, func() {}, err
@@ -54,23 +83,52 @@ func ProvideRedisComponent(cfg *config.Config) (*redisx.RedisClient, func(), err
 }
 
 var redisWire = &types.Wire{
-	RequirePath:  []string{"github.com/stones-hub/taurus-pro-storage/pkg/redisx", "log"},
+	RequirePath:  []string{"github.com/stones-hub/taurus-pro-storage/pkg/redisx", "log", "time"},
 	Name:         "Redis",
 	Type:         "*redisx.RedisClient",
 	ProviderName: "ProvideRedisComponent",
 	Provider: `func {{.ProviderName}}(cfg *config.Config) (*redisx.RedisClient,func(), error) {
 
-	enable := cfg.GetBool("redis.enable")
+		enable := cfg.GetBool("redis.enable")
 	if !enable {
 		return nil, func() {}, nil
 	}
 
 	address := cfg.GetStringSlice("redis.address")
 
+	levelStr := cfg.GetString("redis.logger_level")
+	level := redisx.LogLevelInfo
+	switch levelStr {
+	case "debug":
+		level = redisx.LogLevelDebug
+	case "info":
+		level = redisx.LogLevelInfo
+	case "warn":
+		level = redisx.LogLevelWarn
+	case "error":
+		level = redisx.LogLevelError
+	default:
+		level = redisx.LogLevelInfo
+	}
+
+	formatterStr := cfg.GetString("redis.logger_fomatter")
+	formatter := redisx.JSONLogFormatter
+	switch formatterStr {
+	case "default":
+		formatter = redisx.DefaultLogFormatter
+	case "json":
+		formatter = redisx.JSONLogFormatter
+	default:
+		formatter = redisx.DefaultLogFormatter
+	}
+
 	logger, err := redisx.NewRedisLogger(
-		redisx.WithLogFilePath("./logs/redis/redis.log"),
-		redisx.WithLogLevel(redisx.LogLevelInfo),
-		redisx.WithLogFormatter(redisx.JSONLogFormatter),
+		redisx.WithLogFilePath(cfg.GetString("redis.logger_path")),
+		redisx.WithLogLevel(level),
+		redisx.WithLogFormatter(formatter),
+		redisx.WithLogMaxSize(cfg.GetInt("redis.logger_max_size")),
+		redisx.WithLogMaxBackups(cfg.GetInt("redis.logger_max_backups")),
+		redisx.WithLogMaxAge(cfg.GetInt("redis.logger_max_age")),
 	)
 	if err != nil {
 		return nil, func() {}, err

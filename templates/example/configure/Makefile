@@ -73,6 +73,9 @@ PACKAGE_DIR := $(RELEASE_DIR)/$(RELEASE_FILE_NAME)
 # Default target
 all: build
 
+
+# 需要安装 wire 工具，否则无法生成 wire.go 文件
+# go install github.com/google/wire/cmd/wire@latest
 wire:
 	@echo -e "$(SEPARATOR)"
 	@echo -e "$(BLUE)Generating wire code...$(RESET)"

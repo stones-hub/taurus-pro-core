@@ -125,7 +125,7 @@ var grpcWire = &types.Wire{
 var GrpcComponent = types.Component{
 	Name:         "grpc",
 	Package:      "github.com/stones-hub/taurus-pro-grpc",
-	Version:      "v0.0.1",
+	Version:      "v0.0.2",
 	Description:  "gRPC服务器组件",
 	IsCustom:     true,
 	Required:     false,

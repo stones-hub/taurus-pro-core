@@ -12,7 +12,7 @@ import (
 var OtelComponent = types.Component{
 	Name:         "otel",
 	Package:      "github.com/stones-hub/taurus-pro-opentelemetry",
-	Version:      "v0.0.1",
+	Version:      "v0.0.2",
 	Description:  "otel_tarce组件",
 	IsCustom:     true,
 	Required:     false,

@@ -13,7 +13,7 @@ import (
 var TcpComponent = types.Component{
 	Name:         "tcp",
 	Package:      "github.com/stones-hub/taurus-pro-tcp",
-	Version:      "v0.0.1",
+	Version:      "v0.0.2",
 	Description:  "TCP服务器组件",
 	IsCustom:     true,
 	Required:     false,
