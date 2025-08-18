@@ -1,0 +1,88 @@
+package middleware
+
+import (
+	"net/http"
+	"sync"
+	"time"
+
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tlimit"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tnet"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+// RateLimitMiddleware 组合限流器中间件
+func RateLimitMiddleware() func(next http.Handler) http.Handler {
+	var (
+		compositeLimiter *tlimit.CompositeRateLimiter
+		basicLimiter     *tlimit.RateLimiter
+		once             sync.Once
+	)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 延迟初始化限流器
+			once.Do(func() {
+				initLimiters(&compositeLimiter, &basicLimiter)
+			})
+
+			// 执行限流检查
+			if !checkRateLimit(r, compositeLimiter, basicLimiter) {
+				httpx.SendResponse(w, http.StatusTooManyRequests, "请求过于频繁，请稍后重试", nil)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// initLimiters 初始化限流器
+func initLimiters(composite **tlimit.CompositeRateLimiter, basic **tlimit.RateLimiter) {
+	config := taurus.Container.Config
+
+	// 初始化组合限流器
+	if config.GetBool("http.rate_limit.composite.enabled") {
+		ipCapacity := config.GetInt("http.rate_limit.composite.ip_capacity")
+		globalCapacity := config.GetInt("http.rate_limit.composite.global_capacity")
+		fillInterval := time.Duration(config.GetInt("http.rate_limit.composite.fill_interval")) * time.Second
+
+		if ipCapacity > 0 && globalCapacity > 0 && fillInterval > 0 {
+			*composite = tlimit.NewCompositeRateLimiter(ipCapacity, globalCapacity, fillInterval)
+		}
+	}
+
+	// 初始化基础限流器
+	if config.GetBool("http.rate_limit.basic.enabled") {
+		capacity := config.GetInt("http.rate_limit.basic.capacity")
+		fillInterval := time.Duration(config.GetInt("http.rate_limit.basic.fill_interval")) * time.Second
+
+		if capacity > 0 && fillInterval > 0 {
+			*basic = tlimit.NewRateLimiter(capacity, fillInterval)
+		}
+	}
+}
+
+// checkRateLimit 检查限流
+func checkRateLimit(r *http.Request, composite *tlimit.CompositeRateLimiter, basic *tlimit.RateLimiter) bool {
+	// 获取客户端标识（IP地址或用户ID）
+	clientID := tnet.GetRemoteIP(r)
+
+	// 组合限流器检查
+	if composite != nil {
+		result := composite.Allow(clientID)
+		if !result.Allowed {
+			return false
+		}
+	}
+
+	// 基础限流器检查
+	if basic != nil {
+		if !basic.Allow() {
+			return false
+		}
+	}
+
+	return true
+}

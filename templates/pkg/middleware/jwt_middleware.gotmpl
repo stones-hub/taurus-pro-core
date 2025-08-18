@@ -1,0 +1,141 @@
+package middleware
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tcrypt"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+// JWTClaims JWT声明结构
+type JWTClaims struct {
+	UID      string `json:"uid"`      // 用户ID
+	Username string `json:"username"` // 用户名
+}
+
+// JWTMiddleware JWT中间件
+func JWTMiddleware() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 检查JWT是否启用
+			if !taurus.Container.Config.GetBool("http.jwt.enabled") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// 获取JWT令牌
+			token := extractJWTToken(r)
+			if token == "" {
+				httpx.SendResponse(w, http.StatusUnauthorized, "缺少JWT令牌", nil)
+				return
+			}
+
+			// 验证JWT令牌
+			claims, err := validateJWTToken(token)
+			if err != nil {
+				httpx.SendResponse(w, http.StatusUnauthorized, "JWT令牌无效: "+err.Error(), nil)
+				return
+			}
+
+			// 将用户信息添加到请求上下文
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, "user_id", claims.UID)
+			ctx = context.WithValue(ctx, "username", claims.Username)
+			r = r.WithContext(ctx)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// extractJWTToken 从请求中提取JWT令牌
+// 支持从Authorization头、Cookie、查询参数中提取JWT令牌
+func extractJWTToken(r *http.Request) string {
+	// 从Authorization头提取
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		// 支持 "Bearer <token>" 格式
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			return strings.TrimPrefix(authHeader, "Bearer ")
+		}
+		// 也支持直接使用token
+		return authHeader
+	}
+
+	// 从Cookie中提取
+	if cookie, err := r.Cookie("jwt_token"); err == nil {
+		return cookie.Value
+	}
+
+	// 从查询参数中提取
+	if token := r.URL.Query().Get("token"); token != "" {
+		return token
+	}
+
+	return ""
+}
+
+// validateJWTToken 验证JWT令牌
+func validateJWTToken(token string) (*JWTClaims, error) {
+	// 使用tcrypt包解析JWT令牌
+	claims, err := tcrypt.ParseTokenWithSecret(token, taurus.Container.Config.GetString("http.jwt.secret"))
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为内部Claims结构
+	return &JWTClaims{
+		UID:      claims.Uid,
+		Username: claims.Username,
+	}, nil
+}
+
+// GetUserID 从请求上下文中获取用户ID
+func GetUserID(r *http.Request) string {
+	if userID, ok := r.Context().Value("user_id").(string); ok {
+		return userID
+	}
+	return ""
+}
+
+// GetUsername 从请求上下文中获取用户名
+func GetUsername(r *http.Request) string {
+	if username, ok := r.Context().Value("username").(string); ok {
+		return username
+	}
+	return ""
+}
+
+// GenerateJWTToken 生成JWT令牌（用于登录等场景）
+func GenerateJWTToken(uid string, username string) (string, error) {
+	// 获取配置的过期时间
+	expireHours := taurus.Container.Config.GetInt("http.jwt.expire_hours")
+	if expireHours <= 0 {
+		expireHours = 24 // 默认24小时
+	}
+
+	// 使用tcrypt包生成JWT令牌
+	return tcrypt.GenerateTokenWithExpiration(
+		uid,
+		username,
+		taurus.Container.Config.GetString("http.jwt.issuer"), // JWT签发者
+		taurus.Container.Config.GetString("http.jwt.secret"), // JWT密钥
+		time.Duration(expireHours)*time.Hour,                 // JWT过期时间(小时)
+	)
+}
+
+// RefreshJWTToken 刷新JWT令牌
+func RefreshJWTToken(token string) (string, error) {
+	// 解析现有令牌
+	claims, err := tcrypt.ParseTokenWithSecret(token, taurus.Container.Config.GetString("http.jwt.secret"))
+	if err != nil {
+		return "", err
+	}
+
+	// 生成新的令牌
+	return GenerateJWTToken(claims.Uid, claims.Username)
+}

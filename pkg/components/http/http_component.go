@@ -122,7 +122,7 @@ var mcpWire = &types.Wire{
 var HttpComponent = types.Component{
 	Name:         "http",
 	Package:      "github.com/stones-hub/taurus-pro-http",
-	Version:      "v0.1.1",
+	Version:      "v0.1.2",
 	Description:  "Http,WebSocket服务器组件",
 	IsCustom:     true,
 	Required:     true,

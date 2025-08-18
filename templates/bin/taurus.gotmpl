@@ -11,6 +11,8 @@ import (
 	"{{.ProjectName}}/app"
 	"{{.ProjectName}}/internal/taurus"
 
+	tmid "{{.ProjectName}}/pkg/middleware"
+
 	"github.com/stones-hub/taurus-pro-http/pkg/middleware"
 	"github.com/stones-hub/taurus-pro-http/pkg/router"
 )
@@ -19,6 +21,7 @@ func main() {
 	setGlobalTimezone()
 	pprof()
 	userRoutes()
+	authRoutes()
 
 	taurus.Container.Http.AddRouter(router.Router{
 		Path:    "/home",
@@ -299,6 +302,118 @@ func userRoutes() {
 			middleware.RecoveryMiddleware(func(err any, stack string) {
 				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
 			}),
+		},
+	})
+}
+
+// authRoutes 注册所有认证相关的路由
+func authRoutes() {
+	// 基础认证路由（不需要JWT验证）
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/login",
+		Handler: http.HandlerFunc(app.Core.AuthController.Login),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加限流中间件测试
+			tmid.RateLimitMiddleware(),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/register",
+		Handler: http.HandlerFunc(app.Core.AuthController.Register),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加限流中间件测试
+			tmid.RateLimitMiddleware(),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/logout",
+		Handler: http.HandlerFunc(app.Core.AuthController.Logout),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/refresh",
+		Handler: http.HandlerFunc(app.Core.AuthController.RefreshToken),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 测试限流中间件的路由
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/test/ratelimit",
+		Handler: http.HandlerFunc(app.Core.AuthController.TestRateLimit),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加限流中间件测试
+			tmid.RateLimitMiddleware(),
+		},
+	})
+
+	// 需要JWT验证的路由
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/profile",
+		Handler: http.HandlerFunc(app.Core.AuthController.GetProfile),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加JWT中间件验证
+			tmid.JWTMiddleware(),
+		},
+	})
+
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/profile/update",
+		Handler: http.HandlerFunc(app.Core.AuthController.UpdateProfile),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加JWT中间件验证
+			tmid.JWTMiddleware(),
+		},
+	})
+
+	// 测试JWT中间件的路由
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/test/jwt",
+		Handler: http.HandlerFunc(app.Core.AuthController.TestJWTMiddleware),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加JWT中间件验证
+			tmid.JWTMiddleware(),
+		},
+	})
+
+	// 测试完整认证流程的路由
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/auth/test/protected",
+		Handler: http.HandlerFunc(app.Core.AuthController.TestProtectedEndpoint),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加JWT中间件验证
+			tmid.JWTMiddleware(),
 		},
 	})
 }

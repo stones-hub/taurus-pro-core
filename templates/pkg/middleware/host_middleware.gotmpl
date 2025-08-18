@@ -5,13 +5,13 @@ import (
 
 	"{{.ProjectName}}/internal/taurus"
 
-	"github.com/stones-hub/taurus-pro-common/pkg/util"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tnet"
 	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
 )
 
 func HostMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ips := util.GetRemoteIP(r)
+		ips := tnet.GetAllRemoteIPs(r)
 		if !isAllowedHost(ips) {
 			httpx.SendResponse(w, http.StatusForbidden, "访问被拒绝: 未授权主机.", nil)
 			return
@@ -24,7 +24,7 @@ func isAllowedHost(ips []string) bool {
 	allowedHosts := taurus.Container.Config.GetStringSlice("http.host_white_list")
 
 	for _, ip := range ips {
-		if util.IsIPAllowed(ip, allowedHosts) {
+		if tnet.IsIPAllowed(ip, allowedHosts) {
 			return true
 		}
 	}

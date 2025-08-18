@@ -1,0 +1,445 @@
+// Copyright (c) 2025 Taurus Team. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Author: yelei
+// Email: 61647649@qq.com
+// Date: 2025-08-06
+
+package controller
+
+import (
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"{{.ProjectName}}/app/model"
+	"{{.ProjectName}}/app/service"
+	"{{.ProjectName}}/pkg/middleware"
+
+	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+// AuthController 认证控制器
+type AuthController struct {
+	UserService *service.UserService
+}
+
+// AuthControllerSet wire provider set
+var AuthControllerSet = wire.NewSet(wire.Struct(new(AuthController), "*"))
+
+// ==================== 认证相关结构体 ====================
+
+// LoginRequest 登录请求
+type LoginRequest struct {
+	Username string `json:"username" form:"username"`
+	Password string `json:"password" form:"password"`
+}
+
+// RegisterRequest 注册请求
+type RegisterRequest struct {
+	Username string `json:"username" form:"username"`
+	Password string `json:"password" form:"password"`
+	Email    string `json:"email" form:"email"`
+}
+
+// AuthResponse 认证响应
+type AuthResponse struct {
+	Token     string      `json:"token"`
+	User      *model.User `json:"user"`
+	ExpiresAt time.Time   `json:"expires_at"`
+}
+
+// ==================== 用户认证 ====================
+
+// Login 用户登录
+func (c *AuthController) Login(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		req.Username = r.FormValue("username")
+		req.Password = r.FormValue("password")
+	}
+
+	if req.Username == "" || req.Password == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名和密码不能为空"}, nil)
+		return
+	}
+
+	// 验证用户凭据
+	user, err := c.UserService.GetUserByName(r.Context(), req.Username)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "用户名或密码错误"}, nil)
+		return
+	}
+
+	// 验证密码
+	if !c.validatePassword(req.Password, user.Password) {
+		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "用户名或密码错误"}, nil)
+		return
+	}
+
+	// 生成JWT令牌
+	token, err := middleware.GenerateJWTToken(fmt.Sprintf("%d", user.ID), user.Name)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "生成令牌失败: " + err.Error()}, nil)
+		return
+	}
+
+	// 计算过期时间
+	expireHours := 24 // 默认24小时
+	expiresAt := time.Now().Add(time.Duration(expireHours) * time.Hour)
+
+	response := AuthResponse{
+		Token:     token,
+		User:      user,
+		ExpiresAt: expiresAt,
+	}
+
+	// 设置Cookie（可选）
+	http.SetCookie(w, &http.Cookie{
+		Name:     "jwt_token",
+		Value:    token,
+		Expires:  expiresAt,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // 在生产环境中应该设置为true
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// Register 用户注册
+func (c *AuthController) Register(w http.ResponseWriter, r *http.Request) {
+	var req RegisterRequest
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		req.Username = r.FormValue("username")
+		req.Password = r.FormValue("password")
+		req.Email = r.FormValue("email")
+	}
+
+	if req.Username == "" || req.Password == "" {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户名和密码不能为空"}, nil)
+		return
+	}
+
+	// 检查用户是否已存在
+	existingUser, err := c.UserService.GetUserByName(r.Context(), req.Username)
+	if err == nil && existingUser != nil {
+		httpx.SendResponse(w, http.StatusConflict, map[string]string{"message": "用户名已存在"}, nil)
+		return
+	}
+
+	// 哈希密码
+	hashedPassword := c.hashPassword(req.Password)
+
+	// 创建新用户（使用哈希后的密码）
+	user, err := c.UserService.CreateUser(r.Context(), req.Username, hashedPassword)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "创建用户失败: " + err.Error()}, nil)
+		return
+	}
+
+	// 生成JWT令牌
+	token, err := middleware.GenerateJWTToken(fmt.Sprintf("%d", user.ID), user.Name)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "生成令牌失败: " + err.Error()}, nil)
+		return
+	}
+
+	// 计算过期时间
+	expireHours := 24 // 默认24小时
+	expiresAt := time.Now().Add(time.Duration(expireHours) * time.Hour)
+
+	response := AuthResponse{
+		Token:     token,
+		User:      user,
+		ExpiresAt: expiresAt,
+	}
+
+	// 设置Cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "jwt_token",
+		Value:    token,
+		Expires:  expiresAt,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	httpx.SendResponse(w, http.StatusCreated, response, nil)
+}
+
+// Logout 用户登出
+func (c *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
+	// 清除Cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "jwt_token",
+		Value:    "",
+		Expires:  time.Now().Add(-1 * time.Hour),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "登出成功"}, nil)
+}
+
+// RefreshToken 刷新JWT令牌
+func (c *AuthController) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	// 从请求中获取当前令牌
+	token := extractJWTTokenFromRequest(r)
+	if token == "" {
+		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "缺少JWT令牌"}, nil)
+		return
+	}
+
+	// 刷新令牌
+	newToken, err := middleware.RefreshJWTToken(token)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "令牌刷新失败: " + err.Error()}, nil)
+		return
+	}
+
+	// 计算新的过期时间
+	expireHours := 24
+	expiresAt := time.Now().Add(time.Duration(expireHours) * time.Hour)
+
+	response := AuthResponse{
+		Token:     newToken,
+		User:      nil, // 刷新令牌时不返回用户信息
+		ExpiresAt: expiresAt,
+	}
+
+	// 更新Cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "jwt_token",
+		Value:    newToken,
+		Expires:  expiresAt,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// GetProfile 获取用户资料（需要JWT验证）
+func (c *AuthController) GetProfile(w http.ResponseWriter, r *http.Request) {
+	// 从JWT中间件设置的上下文中获取用户信息
+	userID := middleware.GetUserID(r)
+	username := middleware.GetUsername(r)
+
+	if userID == "" || username == "" {
+		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "未授权访问"}, nil)
+		return
+	}
+
+	// 将userID转换为uint类型
+	uintID, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID格式错误"}, nil)
+		return
+	}
+
+	// 获取用户详细信息
+	user, err := c.UserService.GetUserByID(r.Context(), uint(uintID))
+	if err != nil {
+		httpx.SendResponse(w, http.StatusNotFound, map[string]string{"message": "用户不存在"}, nil)
+		return
+	}
+
+	// 隐藏敏感信息
+	user.Password = ""
+
+	httpx.SendResponse(w, http.StatusOK, user, nil)
+}
+
+// UpdateProfile 更新用户资料（需要JWT验证）
+func (c *AuthController) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	// 从JWT中间件设置的上下文中获取用户信息
+	userID := middleware.GetUserID(r)
+	if userID == "" {
+		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "未授权访问"}, nil)
+		return
+	}
+
+	var req struct {
+		Name  string `json:"name" form:"name"`
+		Email string `json:"email" form:"email"`
+	}
+
+	// 尝试解析JSON
+	if r.Header.Get("Content-Type") == "application/json" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+	} else {
+		// 解析form-data
+		if err := r.ParseForm(); err != nil {
+			httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "请求参数解析失败: " + err.Error()}, nil)
+			return
+		}
+		req.Name = r.FormValue("name")
+		req.Email = r.FormValue("email")
+	}
+
+	// 将userID转换为uint类型
+	uintID, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		httpx.SendResponse(w, http.StatusBadRequest, map[string]string{"message": "用户ID格式错误"}, nil)
+		return
+	}
+
+	// 更新用户名
+	if req.Name != "" {
+		err = c.UserService.UpdateUserName(r.Context(), uint(uintID), req.Name)
+		if err != nil {
+			httpx.SendResponse(w, http.StatusInternalServerError, map[string]string{"message": "更新用户名失败: " + err.Error()}, nil)
+			return
+		}
+	}
+
+	httpx.SendResponse(w, http.StatusOK, map[string]string{"message": "资料更新成功"}, nil)
+}
+
+// ==================== 测试中间件功能 ====================
+
+// TestRateLimit 测试限流中间件
+func (c *AuthController) TestRateLimit(w http.ResponseWriter, r *http.Request) {
+	// 这个接口用于测试限流中间件
+	// 快速连续调用会触发限流
+	response := map[string]interface{}{
+		"message":    "限流测试接口",
+		"timestamp":  time.Now().Unix(),
+		"request_id": r.Header.Get("X-Request-ID"),
+		"user_agent": r.UserAgent(),
+	}
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// TestJWTMiddleware 测试JWT中间件
+func (c *AuthController) TestJWTMiddleware(w http.ResponseWriter, r *http.Request) {
+	// 这个接口需要JWT验证，用于测试JWT中间件
+	userID := middleware.GetUserID(r)
+	username := middleware.GetUsername(r)
+
+	response := map[string]interface{}{
+		"message":    "JWT中间件测试成功",
+		"user_id":    userID,
+		"username":   username,
+		"timestamp":  time.Now().Unix(),
+		"request_id": r.Header.Get("X-Request-ID"),
+	}
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// TestProtectedEndpoint 测试受保护的端点
+func (c *AuthController) TestProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
+	// 这个接口需要JWT验证，用于测试完整的认证流程
+	userID := middleware.GetUserID(r)
+	username := middleware.GetUsername(r)
+
+	response := map[string]interface{}{
+		"message":   "受保护端点访问成功",
+		"user_id":   userID,
+		"username":  username,
+		"timestamp": time.Now().Unix(),
+		"endpoint":  r.URL.Path,
+		"method":    r.Method,
+		"ip":        r.RemoteAddr,
+	}
+
+	httpx.SendResponse(w, http.StatusOK, response, nil)
+}
+
+// ==================== 工具方法 ====================
+
+// validatePassword 验证密码
+func (c *AuthController) validatePassword(inputPassword, storedPassword string) bool {
+	// 简单的MD5密码验证（实际项目中应该使用更安全的哈希算法）
+	hasher := md5.New()
+	hasher.Write([]byte(inputPassword))
+	hashedInput := hex.EncodeToString(hasher.Sum(nil))
+
+	return hashedInput == storedPassword
+}
+
+// hashPassword 哈希密码
+func (c *AuthController) hashPassword(password string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(password))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// extractJWTTokenFromRequest 从请求中提取JWT令牌
+func extractJWTTokenFromRequest(r *http.Request) string {
+	// 从Authorization头提取
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		// 支持 "Bearer <token>" 格式
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			return strings.TrimPrefix(authHeader, "Bearer ")
+		}
+		// 也支持直接使用token
+		return authHeader
+	}
+
+	// 从Cookie中提取
+	if cookie, err := r.Cookie("jwt_token"); err == nil {
+		return cookie.Value
+	}
+
+	// 从查询参数中提取
+	if token := r.URL.Query().Get("token"); token != "" {
+		return token
+	}
+
+	return ""
+}

@@ -9,7 +9,7 @@ require (
 	github.com/stones-hub/taurus-pro-config v0.0.4
 	github.com/stones-hub/taurus-pro-consul v0.1.2
 	github.com/stones-hub/taurus-pro-grpc v0.0.2
-	github.com/stones-hub/taurus-pro-http v0.1.1
+	github.com/stones-hub/taurus-pro-http v0.1.2
 	github.com/stones-hub/taurus-pro-opentelemetry v0.0.2
 	github.com/stones-hub/taurus-pro-storage v0.1.22
 	github.com/stones-hub/taurus-pro-tcp v0.0.2

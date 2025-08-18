@@ -6,3 +6,23 @@ http:
   write_timeout: 30
   idle_timeout: 120
   authorization: "Bearer ${AUTHORIZATION:123456}" # 授权码
+
+  # 限流配置
+  rate_limit:
+    # 组合限流器配置
+    composite:
+      enabled: true
+      ip_capacity: 100        # 每个IP的令牌桶容量
+      global_capacity: 1000   # 全局令牌桶容量
+      fill_interval: 1        # 填充令牌的时间间隔（秒）
+    # 基础限流器配置
+    basic:
+      enabled: true
+      capacity: 500           # 令牌桶容量
+      fill_interval: 1        # 填充令牌的时间间隔（秒）
+  # JWT配置
+  jwt:
+    enabled: true
+    secret: "${JWT_SECRET:your-secret-key}"  # JWT密钥
+    issuer: "taurus-pro"                     # JWT签发者
+    expire_hours: 24                         # JWT过期时间（小时）
