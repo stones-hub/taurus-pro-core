@@ -5,13 +5,13 @@ go 1.24.2
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/spf13/cobra v1.9.1
-	github.com/stones-hub/taurus-pro-common v0.1.25
+	github.com/stones-hub/taurus-pro-common v0.1.28
 	github.com/stones-hub/taurus-pro-config v0.0.4
 	github.com/stones-hub/taurus-pro-consul v0.1.2
-	github.com/stones-hub/taurus-pro-grpc v0.0.1
+	github.com/stones-hub/taurus-pro-grpc v0.0.2
 	github.com/stones-hub/taurus-pro-http v0.1.1
-	github.com/stones-hub/taurus-pro-opentelemetry v0.0.1
-	github.com/stones-hub/taurus-pro-storage v0.1.21
+	github.com/stones-hub/taurus-pro-opentelemetry v0.0.2
+	github.com/stones-hub/taurus-pro-storage v0.1.22
 	github.com/stones-hub/taurus-pro-tcp v0.0.2
 	google.golang.org/grpc v1.74.2
 	gorm.io/gorm v1.30.1
@@ -58,7 +58,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/mattn/go-sqlite3 v1.14.31 // indirect
+	github.com/mattn/go-sqlite3 v1.14.32 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -88,7 +88,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50 // indirect
+	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
