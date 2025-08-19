@@ -296,6 +296,8 @@ github.com/stones-hub/taurus-pro-common v0.1.28 h1:XMTCbQGD40FzdZfmmFZtlnGfu1FUj
 github.com/stones-hub/taurus-pro-common v0.1.28/go.mod h1:non8dV4PtA6Si67Ehl+E9x3GwK6UxHNPDrfzw3SAN/I=
 github.com/stones-hub/taurus-pro-common v0.1.30 h1:AQi5rQmSbKbPUiqV6VH1/wQ6BhBak5JZCONjQVmfACU=
 github.com/stones-hub/taurus-pro-common v0.1.30/go.mod h1:non8dV4PtA6Si67Ehl+E9x3GwK6UxHNPDrfzw3SAN/I=
+github.com/stones-hub/taurus-pro-common v0.1.32 h1:bz5CvcpDLXFCINwXFteY6K7FwLfSf5RR7NsWTmPZecY=
+github.com/stones-hub/taurus-pro-common v0.1.32/go.mod h1:non8dV4PtA6Si67Ehl+E9x3GwK6UxHNPDrfzw3SAN/I=
 github.com/stones-hub/taurus-pro-config v0.0.3 h1:wYou13DSDuCvofnH54U0cHamSijif3G3kCl/DhY47WE=
 github.com/stones-hub/taurus-pro-config v0.0.3/go.mod h1:p1Kaup/JITHRoxbFzun8UtcmHrCCu25vUqcfIXKTUGM=
 github.com/stones-hub/taurus-pro-config v0.0.4 h1:em+PGBJy5mCq6Q4TuB+bVu6AEZfV0MSxDHyKn8wTWwI=
