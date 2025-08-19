@@ -12,14 +12,14 @@ http:
     # 组合限流器配置
     composite:
       enabled: true
-      ip_capacity: 100        # 每个IP的令牌桶容量
-      global_capacity: 1000   # 全局令牌桶容量
-      fill_interval: 1        # 填充令牌的时间间隔（秒）
+      ip_capacity:  5       # 每个IP的令牌桶容量
+      global_capacity: 50   # 全局令牌桶容量
+      fill_interval: 1      # 填充令牌的时间间隔（秒）
     # 基础限流器配置
     basic:
       enabled: true
-      capacity: 500           # 令牌桶容量
-      fill_interval: 1        # 填充令牌的时间间隔（秒）
+      capacity: 10           # 令牌桶容量
+      fill_interval: 1       # 填充令牌的时间间隔（秒）
   # JWT配置
   jwt:
     enabled: true

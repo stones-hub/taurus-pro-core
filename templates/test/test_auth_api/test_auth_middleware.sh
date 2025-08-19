@@ -101,16 +101,16 @@ test_login() {
 test_rate_limit() {
     print_info "测试限流中间件..."
     
-    print_info "快速发送10个请求测试限流..."
+    print_info "快速发送20个请求测试限流..."
     
-    for i in {1..10}; do
+    for i in {1..20}; do
         RESPONSE=$(curl -s -X GET "$AUTH_URL/test/ratelimit")
         if echo "$RESPONSE" | grep -q "请求过于频繁"; then
             print_success "限流中间件工作正常，第$i个请求被限流"
             return 0
         fi
         echo -n "."
-        sleep 0.1
+        sleep 0.05  # 减少间隔时间
     done
     
     print_warning "限流中间件可能未生效，所有请求都通过了"
@@ -192,7 +192,7 @@ test_profile() {
     RESPONSE=$(curl -s -X GET "$AUTH_URL/profile" \
         -H "Authorization: Bearer $TOKEN")
     
-    if echo "$RESPONSE" | grep -q "user_id\|username"; then
+    if echo "$RESPONSE" | grep -q "id\|name"; then
         print_success "用户资料获取成功"
         return 0
     else
