@@ -294,6 +294,8 @@ github.com/stones-hub/taurus-pro-common v0.1.25 h1:1sR6utAA1kStNK3QZOrhbXciGhIN5
 github.com/stones-hub/taurus-pro-common v0.1.25/go.mod h1:8FGj+rR7w1iNdr+UATRRu+PtodpONM565JbaVoszZ2g=
 github.com/stones-hub/taurus-pro-common v0.1.28 h1:XMTCbQGD40FzdZfmmFZtlnGfu1FUjYa/Yi3PwyyFNEU=
 github.com/stones-hub/taurus-pro-common v0.1.28/go.mod h1:non8dV4PtA6Si67Ehl+E9x3GwK6UxHNPDrfzw3SAN/I=
+github.com/stones-hub/taurus-pro-common v0.1.30 h1:AQi5rQmSbKbPUiqV6VH1/wQ6BhBak5JZCONjQVmfACU=
+github.com/stones-hub/taurus-pro-common v0.1.30/go.mod h1:non8dV4PtA6Si67Ehl+E9x3GwK6UxHNPDrfzw3SAN/I=
 github.com/stones-hub/taurus-pro-config v0.0.3 h1:wYou13DSDuCvofnH54U0cHamSijif3G3kCl/DhY47WE=
 github.com/stones-hub/taurus-pro-config v0.0.3/go.mod h1:p1Kaup/JITHRoxbFzun8UtcmHrCCu25vUqcfIXKTUGM=
 github.com/stones-hub/taurus-pro-config v0.0.4 h1:em+PGBJy5mCq6Q4TuB+bVu6AEZfV0MSxDHyKn8wTWwI=
@@ -488,10 +490,14 @@ google.golang.org/genproto/googleapis/api v0.0.0-20250721164621-a45f3dfb1074 h1:
 google.golang.org/genproto/googleapis/api v0.0.0-20250721164621-a45f3dfb1074/go.mod h1:vYFwMYFbmA8vl6Z/krj/h7+U/AqpHknwJX4Uqgfyc7I=
 google.golang.org/genproto/googleapis/api v0.0.0-20250811230008-5f3141c8851a h1:DMCgtIAIQGZqJXMVzJF4MV8BlWoJh2ZuFiRdAleyr58=
 google.golang.org/genproto/googleapis/api v0.0.0-20250811230008-5f3141c8851a/go.mod h1:y2yVLIE/CSMCPXaHnSKXxu1spLPnglFLegmgdY23uuE=
+google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c h1:AtEkQdl5b6zsybXcbz00j1LwNodDuH6hVifIaNqk7NQ=
+google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c/go.mod h1:ea2MjsO70ssTfCjiwHgI0ZFqcw45Ksuk2ckf9G468GA=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20250721164621-a45f3dfb1074 h1:qJW29YvkiJmXOYMu5Tf8lyrTp3dOS+K4z6IixtLaCf8=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20250721164621-a45f3dfb1074/go.mod h1:qQ0YXyHHx3XkvlzUtpXDkS29lDSafHMZBAZDc03LQ3A=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a h1:tPE/Kp+x9dMSwUm/uM0JKK0IfdiJkwAbSMSeZBXXJXc=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a/go.mod h1:gw1tLEfykwDz2ET4a12jcXt4couGAm7IwsVaTy0Sflo=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c h1:qXWI/sQtv5UKboZ/zUk7h+mrf/lXORyI+n9DKDAusdg=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c/go.mod h1:gw1tLEfykwDz2ET4a12jcXt4couGAm7IwsVaTy0Sflo=
 google.golang.org/grpc v1.74.2 h1:WoosgB65DlWVC9FqI82dGsZhWFNBSLjQ84bjROOpMu4=
 google.golang.org/grpc v1.74.2/go.mod h1:CtQ+BGjaAIXHs/5YS3i473GqwBBa1zGQNevxdeBEXrM=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=

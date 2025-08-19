@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/spf13/cobra v1.9.1
-	github.com/stones-hub/taurus-pro-common v0.1.28
+	github.com/stones-hub/taurus-pro-common v0.1.30
 	github.com/stones-hub/taurus-pro-config v0.0.4
 	github.com/stones-hub/taurus-pro-consul v0.1.2
 	github.com/stones-hub/taurus-pro-grpc v0.0.2
@@ -95,8 +95,8 @@ require (
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250811230008-5f3141c8851a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
