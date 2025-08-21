@@ -20,10 +20,14 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"{{.ProjectName}}/internal/taurus"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -90,4 +94,184 @@ func (r *UserRepository) FindByNameLike(ctx context.Context, namePattern string)
 // FindByCreatedTimeRange 根据创建时间范围查找用户
 func (r *UserRepository) FindByCreatedTimeRange(ctx context.Context, startTime, endTime time.Time) ([]User, error) {
 	return r.FindByCondition(ctx, "created_at BETWEEN ? AND ?", startTime, endTime)
+}
+
+// ==================== GORM钩子函数示例 ====================
+// 这些钩子函数会在不同的数据库操作阶段自动调用
+
+// BeforeCreate 创建记录前的钩子
+func (u *User) BeforeCreate(tx *gorm.DB) error {
+	log.Println("User BeforeCreate: 准备创建用户")
+
+	// 数据验证
+	if u.Name == "" {
+		return fmt.Errorf("用户名不能为空")
+	}
+	if u.Password == "" {
+		return fmt.Errorf("密码不能为空")
+	}
+
+	// 密码加密（如果还没有加密）
+	if !strings.HasPrefix(u.Password, "$2a$") {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("密码加密失败: %v", err)
+		}
+		u.Password = string(hashedPassword)
+	}
+
+	// 设置默认值
+	if u.CreatedAt.IsZero() {
+		u.CreatedAt = time.Now()
+	}
+	if u.UpdatedAt.IsZero() {
+		u.UpdatedAt = time.Now()
+	}
+
+	log.Println("User BeforeCreate: 用户数据验证和预处理完成")
+	return nil
+}
+
+// AfterCreate 创建记录后的钩子
+func (u *User) AfterCreate(tx *gorm.DB) error {
+	log.Printf("User AfterCreate: 用户 %s 创建成功，ID: %d", u.Name, u.ID)
+
+	// 可以在这里执行一些后续操作
+	// 比如：发送欢迎邮件、记录审计日志等
+
+	return nil
+}
+
+// BeforeUpdate 更新记录前的钩子
+func (u *User) BeforeUpdate(tx *gorm.DB) error {
+	log.Println("User BeforeUpdate: 准备更新用户")
+
+	// 数据验证
+	if u.Name == "" {
+		return fmt.Errorf("用户名不能为空")
+	}
+
+	// 更新修改时间
+	u.UpdatedAt = time.Now()
+
+	// 如果密码被修改，重新加密
+	if tx.Statement.Changed("Password") {
+		if !strings.HasPrefix(u.Password, "$2a$") {
+			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+			if err != nil {
+				return fmt.Errorf("密码加密失败: %v", err)
+			}
+			u.Password = string(hashedPassword)
+		}
+	}
+
+	log.Println("User BeforeUpdate: 用户数据更新预处理完成")
+	return nil
+}
+
+// AfterUpdate 更新记录后的钩子
+func (u *User) AfterUpdate(tx *gorm.DB) error {
+	log.Printf("User AfterUpdate: 用户 %s 更新成功", u.Name)
+
+	// 可以在这里执行一些后续操作
+	// 比如：记录审计日志、发送通知等
+
+	return nil
+}
+
+// BeforeDelete 删除记录前的钩子
+func (u *User) BeforeDelete(tx *gorm.DB) error {
+	log.Printf("User BeforeDelete: 准备删除用户 %s (ID: %d)", u.Name, u.ID)
+
+	// 检查是否可以删除
+	if u.ID == 1 {
+		return fmt.Errorf("不能删除超级管理员用户")
+	}
+
+	// 可以在这里执行软删除逻辑
+	// 比如：将用户状态标记为已删除，而不是真正删除记录
+
+	log.Println("User BeforeDelete: 用户删除验证完成")
+	return nil
+}
+
+// AfterDelete 删除记录后的钩子
+func (u *User) AfterDelete(tx *gorm.DB) error {
+	log.Printf("User AfterDelete: 用户 %s 删除成功", u.Name)
+
+	// 可以在这里执行一些后续操作
+	// 比如：记录审计日志、清理相关数据等
+
+	return nil
+}
+
+// BeforeSave 保存记录前的钩子（创建和更新都会调用）
+func (u *User) BeforeSave(tx *gorm.DB) error {
+	log.Println("User BeforeSave: 准备保存用户")
+
+	// 通用的保存前逻辑
+	// 比如：数据清理、格式验证等
+
+	// 清理用户名前后空格
+	u.Name = strings.TrimSpace(u.Name)
+
+	// 用户名长度验证
+	if len(u.Name) < 2 || len(u.Name) > 50 {
+		return fmt.Errorf("用户名长度必须在2-50个字符之间")
+	}
+
+	log.Println("User BeforeSave: 用户数据保存预处理完成")
+	return nil
+}
+
+// AfterSave 保存记录后的钩子（创建和更新都会调用）
+func (u *User) AfterSave(tx *gorm.DB) error {
+	log.Printf("User AfterSave: 用户 %s 保存成功", u.Name)
+
+	// 通用的保存后逻辑
+	// 比如：缓存更新、事件触发等
+
+	return nil
+}
+
+// BeforeFind 查询记录前的钩子
+func (u *User) BeforeFind(tx *gorm.DB) error {
+	log.Println("User BeforeFind: 准备查询用户")
+
+	// 可以在这里添加一些查询前的逻辑
+	// 比如：权限检查、查询条件预处理等
+
+	return nil
+}
+
+// AfterFind 查询记录后的钩子
+func (u *User) AfterFind(tx *gorm.DB) error {
+	log.Println("User AfterFind: 用户查询完成")
+
+	// 可以在这里执行一些查询后的逻辑
+	// 比如：数据脱敏、字段计算等
+
+	// 示例：隐藏敏感信息
+	u.Password = "***"
+
+	return nil
+}
+
+// BeforeUpsert 插入或更新记录前的钩子
+func (u *User) BeforeUpsert(tx *gorm.DB) error {
+	log.Println("User BeforeUpsert: 准备插入或更新用户")
+
+	// 可以在这里执行一些通用的逻辑
+	// 比如：数据验证、默认值设置等
+
+	return nil
+}
+
+// AfterUpsert 插入或更新记录后的钩子
+func (u *User) AfterUpsert(tx *gorm.DB) error {
+	log.Println("User AfterUpsert: 用户插入或更新完成")
+
+	// 可以在这里执行一些后续操作
+
+	return nil
 }
