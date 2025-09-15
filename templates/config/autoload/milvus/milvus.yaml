@@ -1,0 +1,32 @@
+milvus:
+  enable: true
+  list:
+    - name: "milvus-client-1"     # 连接标识符，用于区分不同的客户端连接
+      
+      # 基础连接配置
+      address: "192.168.103.113:19530"  # Milvus服务地址，格式：host:port
+      username: "root"                  # 用户名，用于身份验证
+      password: ""                      # 密码，用于身份验证
+      db_name: "default"                # 数据库名称，指定要连接的数据库，默认为default
+      enable_tls_auth: false            # 是否启用TLS安全传输，如果地址使用https://则自动启用
+      api_key: ""                       # API密钥认证，与用户名/密码认证互斥，优先使用APIKey
+      
+      # 重试配置
+      max_retry: 3                      # 最大重试次数
+      max_retry_backoff: "30s"          # 最大重试退避时间
+      
+      # GRPC连接配置
+      # 注意：这些配置项主要用于高级用户，大多数情况下使用默认值即可
+      with_block: true                  # 是否阻塞等待连接建立，默认为true（推荐保持默认）
+      keepalive_time: "30s"             # Keepalive 时间间隔，用于保持连接活跃
+      keepalive_timeout: "10s"          # Keepalive 超时时间，超过此时间未响应则断开连接
+      permit_without_stream: true       # 是否允许无流连接，用于保持空闲连接
+      base_delay: "1s"                  # 连接退避基础延迟时间，重连时的初始延迟
+      multiplier: 1.6                   # 连接退避倍数，每次重连延迟的倍数
+      jitter: 0.2                       # 连接退避抖动系数，避免同时重连
+      max_delay: "120s"                 # 连接退避最大延迟时间，重连延迟的上限
+      min_connect_timeout: "20s"        # 最小连接超时时间，连接建立的最短超时
+      max_recv_msg_size: 0              # 最大接收消息大小，0表示使用默认值(2GB-1)
+      
+      # 其他配置
+      disable_conn: false               # 是否禁用连接握手，true时跳过向Milvus服务器发送ConnectRequest

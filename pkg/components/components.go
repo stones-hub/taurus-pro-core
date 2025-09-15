@@ -12,6 +12,7 @@ import (
 	"github.com/stones-hub/taurus-pro-core/pkg/components/otel"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/storage"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/tcp"
+	"github.com/stones-hub/taurus-pro-core/pkg/components/tmilvus"
 	"github.com/stones-hub/taurus-pro-core/pkg/components/types"
 )
 
@@ -37,6 +38,7 @@ var (
 		tcp.TcpComponent,         // 需要手动选择才能添加的组件
 		otel.OtelComponent,       // 需要手动选择才能添加的组件
 		consul.ConsulComponent,   // 需要手动选择才能添加的组件
+		tmilvus.MilvusComponent,  // 需要手动选择才能添加的组件
 		wireComponent,            // 自动加载，无需手动选择
 	}
 )

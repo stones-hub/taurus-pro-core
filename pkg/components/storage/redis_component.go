@@ -87,7 +87,7 @@ var redisWire = &types.Wire{
 	Name:         "Redis",
 	Type:         "*redisx.RedisClient",
 	ProviderName: "ProvideRedisComponent",
-	Provider: `func {{.ProviderName}}(cfg *config.Config) (*redisx.RedisClient,func(), error) {
+	Provider: `func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 
 		enable := cfg.GetBool("redis.enable")
 	if !enable {

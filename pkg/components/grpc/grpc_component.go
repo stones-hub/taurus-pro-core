@@ -70,7 +70,7 @@ var grpcWire = &types.Wire{
 	Name:         "GRPC",
 	Type:         "*gRPCServer.Server",
 	ProviderName: "ProvideGrpcComponent",
-	Provider: `func {{.ProviderName}}(cfg *config.Config) (*gRPCServer.Server, func(), error) {
+	Provider: `func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 
 	if !cfg.GetBool("grpc.enable") {
 		return nil, func() {}, nil

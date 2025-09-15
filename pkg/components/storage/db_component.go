@@ -88,7 +88,7 @@ var dbWire = &types.Wire{
 	Type:         "map[string]*gorm.DB",
 	ProviderName: "ProvideDbComponent",
 	Provider: `
-	func {{.ProviderName}}(cfg *config.Config) (map[string]*gorm.DB, func(), error) {
+	func {{.ProviderName}}(cfg *config.Config) ({{.Type}}, func(), error) {
 
 		enable := cfg.GetBool("databases.enable")
 
