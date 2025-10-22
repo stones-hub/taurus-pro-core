@@ -28,7 +28,7 @@ func (c *IndexController) Home(w http.ResponseWriter, r *http.Request) {
 		// 添加测试数据
 	for i := 0; i < 10; i++ {
 		testData := []byte(fmt.Sprintf("normal_data_%d", i))
-		if err := process.TestQueue.AddData(context.Background(), testData); err != nil {
+		if err := process.ExampleQueue.AddData(context.Background(), testData); err != nil {
 			log.Printf("Failed to add data: %v", err)
 		}
 	}
