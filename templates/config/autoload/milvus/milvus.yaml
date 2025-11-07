@@ -1,5 +1,5 @@
 milvus:
-  enable: true
+  enable: false
   list:
     - name: "milvus-client-1"     # 连接标识符，用于区分不同的客户端连接
       

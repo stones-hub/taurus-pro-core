@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+    <!-- 权限树复选框组件 -->
+    <script
+      type="text/javascript"
+      src="/static/js/components/my-permission-checkbox-tree.js"
+    ></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title" v-if="pageType != 'detail'">角色权限管理</div>
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>角色名称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.role_name"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>角色编码：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.role_code"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+
+        <div class="form-group ui-grid-cell col-24"> <!-- 角色描述 输入框 , 单独一行 -->
+          <label class="control-label" required>角色描述：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            multi-line enforce-maxlength :maxlength="256"
+            v-model="form.description"
+            :disabled="false"
+          ></ui-textbox>
+
+        </div>
+
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label" align="top">角色权限：</label>
+          <div class="form-control" style="padding: 0; border: none; background-color: transparent;">
+            <my-permission-checkbox-tree 
+              v-if="permissions && permissions.length > 0"
+              :permissions="permissions" 
+              v-model="form.permission_ids"
+              :disabled="false"
+            ></my-permission-checkbox-tree>
+            <div v-else style="padding: 40px; text-align: center; color: rgba(0,0,0,.45); font-size: 14px;">
+              <span>加载权限数据中...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 提交 或 返回 -->
+        <div class="btn-group">
+          <ui-button
+            v-if="app.hasButtonPermission('system.account.role.edit')"
+            color="primary"
+            @click="onSubmit"
+            :disabled="false"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">取消</ui-button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.ROLE_LIST)
+          },
+          form: {
+            role_id: '',
+            role_name: '',
+            role_code: '',
+            description: '',
+            permission_ids: [], // 选中的权限ID数组
+          },
+          permissions: [], // 权限树数据
+          pageType: 'edit', // detail:详情页 edit:编辑页
+          // 提交按钮
+          submitBtn: {
+            text: '提交'
+          }
+        },
+        created() {
+          let urlParams = tools.url2Obj(window.location.href);
+          this.form.role_id = urlParams.role_id || null;
+          this.pageType = urlParams.page_type || 'detail';
+          // 通过role_id获取角色信息
+          this.getRoleInfo();
+        },
+        methods: {
+          // 获取角色信息
+          getRoleInfo() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.EDIT_INFO),
+              data: {role_id: this.form.role_id},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  console.log("编辑角色信息: ", res);
+                  NUI.set(this, 'form', {
+                    role_id: res.data.role_id,
+                    role_name: res.data.role_name,
+                    role_code: res.data.role_code,
+                    description: res.data.description,
+                    permission_ids: [], // 先设置为空，组件会自动根据 checked 属性初始化
+                  });
+                  // 设置权限树数据
+                  NUI.set(this, 'permissions', res.data.permissions || []);
+                } else {
+                  tools.showMsg(res.message || '获取角色信息失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取角色信息失败', 0);
+              }
+            });
+          },
+          onSubmit() {
+            // 设置按钮状态 0：按钮置灰不可点击，1：提交按钮立即还原，2：提交按钮2秒后还原(与消息提示框消息时间同步还原)
+            tools.setSubmitBtn(0);
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.UPDATE),
+              data: this.form,
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showSuccess(this.url.index);
+                  tools.setSubmitBtn(2);
+                  tools.showMsg(res.message || '更新角色成功', 1);
+                } else {
+                  tools.setSubmitBtn(1);
+                  tools.showMsg(res.message || '更新角色失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.setSubmitBtn(1);
+                tools.showMsg(err.message || '更新角色失败', 0);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          }
+        }
+      });
+    </script>
+
+    <style></style>
+  </body>
+</html>

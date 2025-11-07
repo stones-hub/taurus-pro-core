@@ -1,0 +1,31 @@
+package dto
+
+// LoginLogListResponse 登录日志列表响应
+type LoginLogListResponse struct {
+	PageNo      int                 `json:"page_no"`      // 当前页码
+	PageSize    int                 `json:"page_size"`    // 每页条数
+	ResultTotal int64               `json:"result_total"` // 总记录数
+	List        []*LoginLogListItem `json:"list"`         // 日志列表
+}
+
+// LoginLogListItem 登录日志列表项
+type LoginLogListItem struct {
+	LogID         uint64 `json:"log_id"`         // 日志ID
+	UserID        uint64 `json:"user_id"`        // 用户ID
+	Username      string `json:"username"`       // 用户名
+	LoginType     string `json:"login_type"`     // 登录方式
+	LoginIP       string `json:"login_ip"`       // 登录IP
+	UserAgent     string `json:"user_agent"`     // 用户代理
+	LoginStatus   string `json:"login_status"`   // 登录状态：1成功，0失败
+	FailureReason string `json:"failure_reason"` // 失败原因
+	LoginTime     string `json:"login_time"`     // 登录时间
+}
+
+// 登录状态转换
+func LoginStatusToString(status int8) string {
+	if status == 1 {
+		return "成功"
+	} else {
+		return "失败"
+	}
+}

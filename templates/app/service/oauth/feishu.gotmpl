@@ -1,0 +1,18 @@
+package oauth
+
+import (
+	"context"
+	"{{.ProjectName}}/app/helper"
+)
+
+type FeishuProvider struct{}
+
+func (p *FeishuProvider) Name() string { return string(helper.LoginTypeFeishu) }
+
+// ExchangeCode 占位实现：请接入飞书OAuth API换取用户信息
+func (p *FeishuProvider) ExchangeCode(ctx context.Context, code string) (*OAuthUserInfo, error) {
+	// TODO: 接入真实API
+	return &OAuthUserInfo{Provider: p.Name()}, nil
+}
+
+func init() { Register(&FeishuProvider{}) }

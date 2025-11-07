@@ -1,0 +1,91 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminUser 用户基础信息表
+type AdminUser struct {
+	UserID   uint64     `json:"user_id" gorm:"primaryKey;autoIncrement;column:user_id;comment:用户ID"`                        // 用户ID
+	Username string     `json:"username" gorm:"uniqueIndex:uk_username;size:60;not null;column:username;comment:用户名"`       // 用户名（必填）
+	Realname string     `json:"realname" gorm:"size:60;not null;default:'';column:realname;comment:真实姓名"`                   // 真实姓名
+	Nickname string     `json:"nickname" gorm:"size:60;not null;default:'';column:nickname;comment:昵称"`                     // 昵称
+	Avatar   string     `json:"avatar" gorm:"size:255;not null;default:'';column:avatar;comment:头像URL"`                     // 头像URL
+	Mobile   *string    `json:"mobile" gorm:"uniqueIndex:uk_mobile;size:20;column:mobile;comment:手机号码(可空；第三方未返回手机号时为NULL)"` // 手机号码(可空；第三方未返回手机号时为NULL)
+	Email    *string    `json:"email" gorm:"uniqueIndex:uk_email;size:100;column:email;comment:邮箱地址"`                       // 邮箱地址
+	Gender   int8       `json:"gender" gorm:"not null;default:0;column:gender;comment:性别：0未知，1男，2女"`                        // 性别：0未知，1男，2女
+	Birthday *time.Time `json:"birthday" gorm:"type:date;column:birthday;comment:生日"`                                       // 生日
+	Position string     `json:"position" gorm:"size:100;not null;default:'';column:position;comment:职位"`                    // 职位
+	Status   int8       `json:"status" gorm:"index:idx_status;not null;default:1;column:status;comment:状态：1启用，0禁用，-1删除"`    // 状态：1启用，0禁用，-1删除
+	// IsAdmin       int8       `json:"is_admin" gorm:"not null;default:0;column:is_admin;comment:是否系统管理员：1是，0否"`                                         // 是否系统管理员：1是，0否
+	UserSource    int8       `json:"user_source" gorm:"index:idx_user_source;not null;default:1;column:user_source;comment:用户来源：1自主注册，2企业微信同步，3其他SSO"` // 用户来源：1自主注册，2企业微信同步，3其他SSO
+	LastLoginTime *time.Time `json:"last_login_time" gorm:"column:last_login_time;comment:最后登录时间"`                                                     // 最后登录时间
+	LastLoginIP   string     `json:"last_login_ip" gorm:"size:45;not null;default:'';column:last_login_ip;comment:最后登录IP"`                             // 最后登录IP
+	CreatedAt     time.Time  `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                              // 创建时间
+	UpdatedAt     time.Time  `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"`  // 修改时间
+}
+
+// TableName 指定表名
+func (AdminUser) TableName() string {
+	return "admin_users"
+}
+
+func (AdminUser) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminUserRepository struct {
+	dao.Repository[AdminUser]
+}
+
+func NewAdminUserRepository() *AdminUserRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminUser]()
+	if err != nil {
+		panic("创建AdminUserRepository失败: " + err.Error())
+	}
+	return &AdminUserRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminUserRepositoryWithDB(db *gorm.DB) *AdminUserRepository {
+	repo := dao.NewBaseRepository[AdminUser](db)
+	return &AdminUserRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminUserRepository) GetDB() *gorm.DB {
+	return (&AdminUser{}).DB()
+}
+
+// FindByMobile 根据手机号查找用户
+func (r *AdminUserRepository) FindByMobile(ctx context.Context, mobile string) (*AdminUser, error) {
+	return r.FindOneByCondition(ctx, "mobile = ?", mobile)
+}
+
+// FindByUserID 根据用户ID查找用户
+func (r *AdminUserRepository) FindByUserID(ctx context.Context, userID uint64) (*AdminUser, error) {
+	return r.FindOneByCondition(ctx, "user_id = ?", userID)
+}
+
+// UpdateLastLogin 更新最后登录信息
+func (r *AdminUserRepository) UpdateLastLogin(ctx context.Context, userID uint64, loginTime time.Time, loginIP string) error {
+	return r.UpdateByCondition(ctx, map[string]interface{}{
+		"last_login_time": loginTime,
+		"last_login_ip":   loginIP,
+	}, "user_id = ?", userID)
+}

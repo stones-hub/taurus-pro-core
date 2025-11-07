@@ -1,0 +1,45 @@
+package helper
+
+import (
+	"log"
+	"net/http"
+
+	mid "{{.ProjectName}}/pkg/middleware"
+)
+
+// GenerateJWTToken 生成JWT令牌并设置Cookie
+func GenerateJWTToken(id, name string) (string, error) {
+	// 生成JWT令牌
+	token, err := mid.GenerateJWTToken(id, name)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// SetJWTToken 设置JWT令牌到Cookie和Header
+func SetJWTToken(w http.ResponseWriter, token string) {
+	log.Printf("SetJWTToken: %s", token)
+	mid.SetJWTToken(w, token)
+}
+
+func ClearJWTToken(w http.ResponseWriter) {
+	mid.ClearJWTToken(w)
+}
+
+// GenerateCSRFToken 生成CSRF Token（随机字符串）
+func GenerateCSRFToken() (string, error) {
+	return mid.GenerateCSRFToken()
+}
+
+// SetCSRFToken 设置CSRF Token到Cookie
+func SetCSRFToken(w http.ResponseWriter, token string) {
+	log.Printf("SetCSRFToken: %s", token)
+
+	mid.SetCSRFToken(w, token)
+}
+
+// ClearCSRFToken 清除CSRF Token Cookie
+func ClearCSRFToken(w http.ResponseWriter) {
+	mid.ClearCSRFToken(w)
+}

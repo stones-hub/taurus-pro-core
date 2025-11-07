@@ -1,0 +1,43 @@
+package oauth
+
+import (
+	"context"
+	"time"
+)
+
+// OAuthUserInfo 标准化的第三方用户信息
+type OAuthUserInfo struct {
+	Provider   string         // 平台名：wechat_work、dingtalk、feishu...
+	ExternalID string         // 平台侧用户唯一标识（兜底）
+	UnionID    string         // 跨应用唯一ID（若有）
+	OpenID     string         // 单应用ID（若有）
+	Mobile     string         // 手机号（若返回）
+	Email      string         // 邮箱（若返回）
+	Nickname   string         // 昵称
+	AvatarURL  string         // 头像
+	ExpiresAt  *time.Time     // token 过期时间（若有）
+	Raw        map[string]any // 原始字段快照（审计/排障）
+}
+
+// PrimaryID 返回用于绑定/查找的唯一标识
+// 设计约定：仅使用 ExternalID 作为主键；UnionID/OpenID 仅作审计/冗余存档，避免平台策略变更导致主键漂移。
+func (u *OAuthUserInfo) PrimaryID() string {
+	if u == nil {
+		return ""
+	}
+	return u.ExternalID
+}
+
+// OAuthProvider 面向不同第三方（企业微信、钉钉、飞书等）的统一接口
+type OAuthProvider interface {
+	// Name 统一命名：wechat_work、dingtalk、feishu ...
+	Name() string
+	// ExchangeCode 后端直连第三方，用授权码换取标准化用户信息
+	ExchangeCode(ctx context.Context, code string) (*OAuthUserInfo, error)
+}
+
+// Registry 简单的内存注册表
+var providers = map[string]OAuthProvider{}
+
+func Register(p OAuthProvider)              { providers[p.Name()] = p }
+func Get(name string) (OAuthProvider, bool) { p, ok := providers[name]; return p, ok }

@@ -1,3 +1,3 @@
 websocket:
-  enable: true # 是否启用websocket
+  enable: false # 是否启用websocket
   handler: demo # websocket handler配置

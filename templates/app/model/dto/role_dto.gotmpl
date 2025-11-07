@@ -1,0 +1,150 @@
+package dto
+
+import (
+	"{{.ProjectName}}/app/model"
+	"fmt"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tsonic"
+)
+
+// UserRoleDetailResponse 单个用户的角色详情和权限详情Response
+// 用于前端展示用户拥有的每个角色，以及每个角色下的权限列表
+type UserRoleDetailResponse struct {
+	UserID         uint64                   `json:"user_id"`         // 用户ID
+	Roles          []UserRoleDetail         `json:"roles"`           // 所有的角色列表，但用户拥有的角色被checked
+	AllPermissions []model.AdminPermissions `json:"all_permissions"` // 用户拥有的所有权限汇总（去重后的，方便前端统一展示）
+}
+
+// UserRoleDetail 单个角色的详情信息
+// 包含角色基本信息和该角色拥有的权限列表
+type UserRoleDetail struct {
+	Role    model.AdminRole `json:"role"`    // 角色基本信息
+	Checked bool            `json:"checked"` // 是否选中（当前用户是否拥有该角色）
+}
+
+// RoleListResponse 角色列表响应
+type RoleListResponse struct {
+	PageNo      int                     `json:"page_no"`      // 当前页码
+	PageSize    int                     `json:"page_size"`    // 每页条数
+	ResultTotal int64                   `json:"result_total"` // 总页数
+	List        []*RoleListResponseItem `json:"list"`         // 角色列表
+}
+
+type RoleListResponseItem struct {
+	RoleID      uint64 `json:"role_id"`     // 角色ID
+	RoleName    string `json:"role_name"`   // 角色名称
+	RoleCode    string `json:"role_code"`   // 角色编码
+	UrlName     string `json:"url_name"`    // 角色权限详情URL名称
+	DetailUrl   string `json:"detail_url"`  // 角色权限详情URL名称
+	Description string `json:"description"` // 角色描述
+	SortOrder   int    `json:"sort_order"`  // 排序
+	Status      int8   `json:"status"`      // 状态
+	IsSystem    int8   `json:"is_system"`   // 是否系统角色
+	UpdatedAt   string `json:"update_time"` // 修改时间
+	CreatedAt   string `json:"add_time"`    // 创建时间
+}
+
+// RoleDetailResponse 角色详情响应
+type RoleDetailResponse struct {
+	RoleID      uint64                      `json:"role_id"`     // 角色ID
+	RoleName    string                      `json:"role_name"`   // 角色名称
+	RoleCode    string                      `json:"role_code"`   // 角色编码
+	Description string                      `json:"description"` // 角色描述
+	SortOrder   int                         `json:"sort_order"`  // 排序
+	Status      int8                        `json:"status"`      // 状态
+	IsSystem    int8                        `json:"is_system"`   // 是否系统角色
+	UpdatedAt   string                      `json:"update_time"` // 修改时间
+	CreatedAt   string                      `json:"add_time"`    // 创建时间
+	Permissions []*RoleDetailPermissionTree `json:"permissions"` // 该角色拥有的权限树（层级结构）
+}
+
+// RoleDetailPermissionTree 权限树节点（支持层级结构）
+type RoleDetailPermissionTree struct {
+	PermissionID   uint64                      `json:"permission_id"`   // 权限ID
+	ParentID       uint64                      `json:"parent_id"`       // 父权限ID
+	PermissionName string                      `json:"permission_name"` // 权限名称
+	PermissionCode string                      `json:"permission_code"` // 权限编码
+	PermissionType int8                        `json:"permission_type"` // 权限类型：1菜单，2按钮，3接口
+	Path           string                      `json:"path"`            // 路径
+	Icon           string                      `json:"icon"`            // 图标
+	SortOrder      int                         `json:"sort_order"`      // 排序
+	Status         int8                        `json:"status"`          // 状态
+	IsSystem       int8                        `json:"is_system"`       // 是否系统权限
+	Checked        bool                        `json:"checked"`         // 是否选中（当前角色是否拥有该权限）
+	UpdatedAt      string                      `json:"update_time"`     // 修改时间
+	CreatedAt      string                      `json:"add_time"`        // 创建时间
+	Children       []*RoleDetailPermissionTree `json:"children"`        // 子权限列表
+}
+
+// EditRoleInfoResponse 编辑角色信息响应(含所有权限，并且将当前角色的所有权限设置为选中状态)
+type EditRoleInfoResponse struct {
+	RoleID      uint64                    `json:"role_id"`     // 角色ID
+	RoleName    string                    `json:"role_name"`   // 角色名称
+	RoleCode    string                    `json:"role_code"`   // 角色编码
+	Description string                    `json:"description"` // 角色描述
+	SortOrder   int                       `json:"sort_order"`  // 排序
+	Status      int8                      `json:"status"`      // 状态
+	IsSystem    int8                      `json:"is_system"`   // 是否系统角色
+	UpdatedAt   string                    `json:"update_time"` // 修改时间
+	CreatedAt   string                    `json:"add_time"`    // 创建时间
+	Permissions []*EditRolePermissionTree `json:"permissions"` // 所有权限树（层级结构），当前角色拥有的权限标记为选中
+}
+
+// EditRolePermissionTree 编辑角色权限树节点（支持层级结构，包含选中状态）
+type EditRolePermissionTree struct {
+	PermissionID   uint64                    `json:"permission_id"`   // 权限ID
+	ParentID       uint64                    `json:"parent_id"`       // 父权限ID
+	PermissionName string                    `json:"permission_name"` // 权限名称
+	PermissionCode string                    `json:"permission_code"` // 权限编码
+	PermissionType int8                      `json:"permission_type"` // 权限类型：1菜单，2按钮，3接口
+	Path           string                    `json:"path"`            // 路径
+	Icon           string                    `json:"icon"`            // 图标
+	SortOrder      int                       `json:"sort_order"`      // 排序
+	Status         int8                      `json:"status"`          // 状态
+	IsSystem       int8                      `json:"is_system"`       // 是否系统权限
+	UpdatedAt      string                    `json:"update_time"`     // 修改时间
+	CreatedAt      string                    `json:"add_time"`        // 创建时间
+	Checked        bool                      `json:"checked"`         // 是否选中（当前角色是否拥有该权限）
+	Children       []*EditRolePermissionTree `json:"children"`        // 子权限列表
+}
+
+func (e *EditRolePermissionTree) String() string {
+	// 打印当前权限树的结构， json格式
+	j, err := tsonic.MarshalToString(e)
+	if err != nil {
+		return fmt.Sprintf("PermissionID: %d, ParentID: %d, PermissionName: %s, PermissionCode: %s, PermissionType: %d, Path: %s, Icon: %s, SortOrder: %d, Status: %d, IsSystem: %d, UpdatedAt: %s, CreatedAt: %s, Checked: %t, Children: %v",
+			e.PermissionID,
+			e.ParentID,
+			e.PermissionName,
+			e.PermissionCode,
+			e.PermissionType,
+			e.Path,
+			e.Icon,
+			e.SortOrder,
+			e.Status,
+			e.IsSystem,
+			e.UpdatedAt,
+			e.CreatedAt,
+			e.Checked,
+			len(e.Children),
+		)
+	}
+	return j
+}
+
+// UpdateRoleRequest 更新角色请求
+type UpdateRoleRequest struct {
+	RoleID        uint64   `json:"role_id"`        // 角色ID
+	RoleName      string   `json:"role_name"`      // 角色名称
+	PermissionIDs []uint64 `json:"permission_ids"` // 权限ID数组
+}
+
+// AddRoleRequest 新增角色请求
+type AddRoleRequest struct {
+	RoleName      string   `json:"role_name"`      // 角色名称
+	RoleCode      string   `json:"role_code"`      // 角色编码（必须唯一）
+	Description   string   `json:"description"`    // 角色描述
+	SortOrder     int      `json:"sort_order"`     // 排序
+	IsSystem      int      `json:"is_system"`      // 是否系统角色：1是，0否
+	PermissionIDs []uint64 `json:"permission_ids"` // 权限ID数组
+}

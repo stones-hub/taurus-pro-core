@@ -26,3 +26,4 @@ http:
     secret: "${JWT_SECRET:your-secret-key}"  # JWT密钥
     issuer: "taurus-pro"                     # JWT签发者
     expire_hours: 24                         # JWT过期时间（小时）
+    secure: false                             # JWT是否启用HTTPS

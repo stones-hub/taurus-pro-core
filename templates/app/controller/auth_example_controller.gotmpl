@@ -237,7 +237,7 @@ func (c *AuthController) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 刷新令牌
-	newToken, err := middleware.RefreshJWTToken(token)
+	newToken, err := middleware.RefreshJWTToken(w, token)
 	if err != nil {
 		httpx.SendResponse(w, http.StatusUnauthorized, map[string]string{"message": "令牌刷新失败: " + err.Error()}, nil)
 		return

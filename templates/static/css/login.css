@@ -1,0 +1,159 @@
+.signin {
+  min-height: 100vh;
+}
+
+.signin__wrap {
+  overflow: hidden;
+  position: relative;
+  height: 100%;
+  padding: 40px 40px 48px;
+  text-align: center;
+}
+
+.signin__logo {
+  margin-bottom: 15px;
+}
+
+.signin__title {
+  margin-bottom: 8px;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.3333;
+}
+
+.signin .ui-progress-linear {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.login__hidden {
+  overflow: hidden;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 0px;
+  height: 0px;
+  padding: 0;
+  margin: 0;
+}
+
+.login__pwd {
+  display: inline-block;
+  width: 100%;
+  padding: 20px 0 0;
+  font-size: 15px;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.login__pwd .ui-textbox.has-floating-label {
+  margin-bottom: 20px;
+}
+
+.login__pwd .ui-textbox.has-floating-label:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.login__pwd .ui-textbox.has-floating-label.is-active:before {
+  border: 2px solid #1a73e8;
+}
+
+.login__pwd .ui-textbox.has-floating-label .ui-textbox__input {
+  height: 48px;
+  padding: 12px 15px !important;
+  line-height: 24px;
+  font-size: 14px;
+}
+
+.login__pwd .ui-textbox.has-floating-label .ui-textbox__label-text {
+  display: block;
+  top: 18px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  padding: 0 8px;
+  width: auto;
+  line-height: 1.2;
+  text-align: left;
+  font-size: 14px;
+  background-color: #fff;
+  -webkit-transform: translateY(0) scale(1);
+          transform: translateY(0) scale(1);
+}
+
+.login__pwd .ui-textbox.has-floating-label .ui-textbox__label-text.is-floating {
+  display: table;
+  -webkit-transform: translateY(-22px) scale(0.88);
+          transform: translateY(-22px) scale(0.88);
+}
+
+.login__pwd .ui-textbox.has-floating-label.has-code {
+  padding-right: 116px;
+}
+
+.login__pwd .ui-textbox.has-floating-label.has-code .ui-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 100px;
+  height: 32px;
+  z-index: 9;
+}
+
+.login__pwd .btn-groud {
+  margin-top: 30px;
+}
+
+.login__pwd .btn-groud .ui-button {
+  width: 100px;
+  height: 36px;
+  font-size: 14px;
+}
+
+@media (min-width: 601px) {
+  .signin {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+        -ms-flex-direction: column;
+            flex-direction: column;
+  }
+  .signin:before, .signin:after {
+    content: '';
+    display: block;
+    -webkit-box-flex: 1;
+        -ms-flex-positive: 1;
+            flex-grow: 1;
+    height: 24px;
+    min-height: 24px;
+  }
+  .signin__wrap {
+    width: 400px;
+    height: auto;
+    min-height: 420px;
+    margin: 0 auto;
+    -ms-flex-negative: 0;
+        flex-shrink: 0;
+    border-radius: 8px;
+    background-color: #fff;
+    border: 1px solid #dadce0;
+  }
+  .login__pwd .ui-textbox .ui-textbox__label-text {
+    background-color: #fff;
+  }
+}

@@ -1,0 +1,14 @@
+package dto
+
+// SendCodeRequest 发送验证码请求
+type SendCodeRequest struct {
+	LoginType  string `json:"login_type" binding:"required"`  // 登录类型：mobile
+	LoginValue string `json:"login_value" binding:"required"` // 登录标识（手机号）
+}
+
+// SendCodeResponseDto 发送验证码响应DTO
+type SendCodeResponse struct {
+	Status  string `json:"status"`  // 状态：success成功，error失败
+	Message string `json:"message"` // 状态消息
+	Expires int    `json:"expires"` // 验证码过期时间（秒）
+}

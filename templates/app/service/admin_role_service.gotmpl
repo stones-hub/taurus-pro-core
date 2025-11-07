@@ -1,0 +1,947 @@
+package service
+
+import (
+	"context"
+	"{{.ProjectName}}/app/model"
+	"{{.ProjectName}}/app/model/dto"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/google/wire"
+)
+
+type AdminRoleService struct {
+	AdminRoleRepository            *model.AdminRoleRepository
+	AdminRolePermissionsRepository *model.AdminRolePermissionsRepository
+	AdminPermissionsRepository     *model.AdminPermissionsRepository
+	AdminUserRoleRepository        *model.AdminUserRoleRepository
+	AdminUserRepository            *model.AdminUserRepository
+}
+
+var AdminRoleServiceSet = wire.NewSet(NewAdminRoleService)
+
+func NewAdminRoleService() *AdminRoleService {
+	return &AdminRoleService{
+		AdminRoleRepository:            model.NewAdminRoleRepository(),
+		AdminRolePermissionsRepository: model.NewAdminRolePermissionsRepository(),
+		AdminPermissionsRepository:     model.NewAdminPermissionsRepository(),
+		AdminUserRoleRepository:        model.NewAdminUserRoleRepository(),
+		AdminUserRepository:            model.NewAdminUserRepository(),
+	}
+}
+
+// GetUserRolesAndPermissions 根据用户ID，获取用户角色和权限
+func (s *AdminRoleService) GetUserRolesAndPermissions(ctx context.Context, userID uint64) (dto.UserRoleDetailResponse, error) {
+	response := dto.UserRoleDetailResponse{
+		UserID:         userID,
+		Roles:          make([]dto.UserRoleDetail, 0),
+		AllPermissions: make([]model.AdminPermissions, 0),
+	}
+
+	// 1. 获取所有启用的角色列表(只获取正常状态的角色)
+	allRoles, err := s.AdminRoleRepository.FindByCondition(ctx, "status = 1")
+	if err != nil {
+		return response, fmt.Errorf("获取所有角色列表失败: %v", err)
+	}
+
+	// 2. 根据用户ID查找用户角色关联
+	userRoles, err := s.AdminUserRoleRepository.FindByUserID(ctx, userID)
+	if err != nil {
+		return response, err
+	}
+
+	// 3. 构建用户已拥有的角色ID集合，用于快速判断
+	userRoleIDMap := make(map[uint64]bool)
+	for _, userRole := range userRoles {
+		userRoleIDMap[userRole.RoleID] = true
+	}
+
+	// 4. 用于去重的权限映射表（key: permission_id）
+	permissionMap := make(map[uint64]model.AdminPermissions)
+
+	// 5. 遍历所有启用角色，构建带checked状态的角色列表，并收集用户拥有的权限
+	for _, role := range allRoles {
+		// 5.1 构建角色详情，设置checked状态
+		roleDetail := dto.UserRoleDetail{
+			Role:    role,
+			Checked: userRoleIDMap[role.RoleID], // 用户是否拥有该角色
+		}
+		response.Roles = append(response.Roles, roleDetail)
+
+		// 5.2 如果用户拥有该角色，获取该角色的权限并添加到权限映射表
+		if userRoleIDMap[role.RoleID] {
+			// 根据角色ID获取该角色拥有的权限关联
+			rolePermissions, err := s.AdminRolePermissionsRepository.FindByRoleID(ctx, role.RoleID)
+			if err != nil {
+				return response, err
+			}
+
+			// 获取权限详细信息并添加到去重映射表
+			for _, rp := range rolePermissions {
+				permission, err := s.AdminPermissionsRepository.FindByPermissionID(ctx, rp.PermissionID)
+				if err != nil {
+					return response, err
+				}
+				// 添加到去重映射表
+				permissionMap[permission.PermissionID] = *permission
+			}
+		}
+	}
+
+	// 6. 将去重后的权限转换为切片
+	response.AllPermissions = make([]model.AdminPermissions, 0, len(permissionMap))
+	for _, permission := range permissionMap {
+		response.AllPermissions = append(response.AllPermissions, permission)
+	}
+
+	return response, nil
+}
+
+// GetUserMenusAndButtons 获取用户有权限的菜单树和按钮权限列表
+// 用于前端菜单渲染和按钮权限控制
+func (s *AdminRoleService) GetUserMenusAndButtons(ctx context.Context, userID uint64) (dto.UserMenuButtonResponse, error) {
+	response := dto.UserMenuButtonResponse{
+		Menus:   make([]*dto.FrontendMenuNode, 0),
+		Buttons: make([]string, 0),
+	}
+
+	// 1. 检查用户是否是超级管理员
+	isSuperAdmin, err := s.IsUserSuperAdmin(ctx, userID)
+	if err != nil {
+		return response, err
+	}
+
+	var userPermissions []model.AdminPermissions
+
+	if isSuperAdmin {
+		// 超级管理员：获取所有启用的权限
+		allPermissions, err := s.AdminPermissionsRepository.FindByCondition(ctx, "status = 1")
+		if err != nil {
+			return response, err
+		}
+		userPermissions = allPermissions
+	} else {
+		// 普通用户：根据用户角色获取权限
+		userPermissions, err = s.GetUserAllPermissions(ctx, userID)
+		if err != nil {
+			return response, err
+		}
+	}
+
+	// 2. 分离菜单权限和按钮权限
+	menuPermissions := make([]model.AdminPermissions, 0)
+	buttonPermissions := make([]model.AdminPermissions, 0)
+
+	for _, perm := range userPermissions {
+		// 只处理启用的权限（超级管理员已经过滤了，这里再检查一次确保安全）
+		if perm.Status != 1 {
+			continue
+		}
+
+		switch perm.PermissionType {
+		case 1: // 菜单权限
+			menuPermissions = append(menuPermissions, perm)
+		case 2: // 按钮权限
+			buttonPermissions = append(buttonPermissions, perm)
+		}
+	}
+
+	// 3. 直接构建前端格式的菜单树
+	response.Menus = s.buildFrontendMenuTree(menuPermissions)
+
+	// 4. 构建按钮权限编码列表
+	for _, button := range buttonPermissions {
+		response.Buttons = append(response.Buttons, button.PermissionCode)
+	}
+
+	return response, nil
+}
+
+// IsUserSuperAdmin 检查用户是否是超级管理员（公开方法，供中间件使用）
+func (s *AdminRoleService) IsUserSuperAdmin(ctx context.Context, userID uint64) (bool, error) {
+	// 1. 根据用户ID查找用户角色关联
+	userRoles, err := s.AdminUserRoleRepository.FindByUserID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	// 2. 检查用户是否有超级管理员角色（role_code='super_admin'）
+	for _, userRole := range userRoles {
+		role, err := s.AdminRoleRepository.FindOneByCondition(ctx, "role_id = ?", userRole.RoleID)
+		if err != nil {
+			continue // 角色不存在，跳过
+		}
+		if role != nil && role.RoleCode == "super_admin" && role.Status == 1 {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetUserAllPermissions 获取用户所有权限（去重后的，公开方法，供中间件使用）
+func (s *AdminRoleService) GetUserAllPermissions(ctx context.Context, userID uint64) ([]model.AdminPermissions, error) {
+	// 1. 根据用户ID查找用户角色关联
+	userRoles, err := s.AdminUserRoleRepository.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 用于去重的权限映射表（key: permission_id）
+	permissionMap := make(map[uint64]model.AdminPermissions)
+
+	// 3. 遍历用户角色，收集用户拥有的权限
+	for _, userRole := range userRoles {
+		// 根据角色ID获取该角色拥有的权限关联
+		rolePermissions, err := s.AdminRolePermissionsRepository.FindByRoleID(ctx, userRole.RoleID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 获取权限详细信息并添加到去重映射表
+		for _, rp := range rolePermissions {
+			permission, err := s.AdminPermissionsRepository.FindByPermissionID(ctx, rp.PermissionID)
+			if err != nil {
+				continue // 权限不存在，跳过
+			}
+			// 添加到去重映射表
+			permissionMap[permission.PermissionID] = *permission
+		}
+	}
+
+	// 4. 将去重后的权限转换为切片
+	permissions := make([]model.AdminPermissions, 0, len(permissionMap))
+	for _, permission := range permissionMap {
+		permissions = append(permissions, permission)
+	}
+
+	return permissions, nil
+}
+
+// buildFrontendMenuTree 直接构建前端格式的菜单树（只包含菜单类型权限）
+// 前端格式：{ name, mode: ['tree'], children: [{ name, icon, children: [{ name, link }] }] }
+func (s *AdminRoleService) buildFrontendMenuTree(menuPermissions []model.AdminPermissions) []*dto.FrontendMenuNode {
+	if len(menuPermissions) == 0 {
+		return make([]*dto.FrontendMenuNode, 0)
+	}
+
+	// 1. 创建权限ID到权限的映射，用于快速查找
+	permMap := make(map[uint64]model.AdminPermissions)
+	for _, perm := range menuPermissions {
+		permMap[perm.PermissionID] = perm
+	}
+
+	// 2. 将权限转换为前端格式的树节点
+	treeMap := make(map[uint64]*dto.FrontendMenuNode)
+	for _, perm := range menuPermissions {
+		frontendNode := &dto.FrontendMenuNode{
+			Name:     perm.PermissionName,
+			Mode:     []string{"tree"}, // 默认使用tree模式
+			Icon:     perm.Icon,
+			Children: make([]*dto.FrontendMenuNode, 0),
+		}
+		// 如果path不为空，直接赋值给link（菜单权限的path就是前端link）
+		if perm.Path != "" {
+			frontendNode.Link = perm.Path
+		}
+		treeMap[perm.PermissionID] = frontendNode
+	}
+
+	// 3. 构建树结构
+	var roots []*dto.FrontendMenuNode
+	for _, perm := range menuPermissions {
+		frontendNode := treeMap[perm.PermissionID]
+		if perm.ParentID == 0 {
+			// 根节点
+			roots = append(roots, frontendNode)
+		} else {
+			// 子节点，添加到父节点的 Children 中
+			if parent, exists := treeMap[perm.ParentID]; exists {
+				parent.Children = append(parent.Children, frontendNode)
+			}
+		}
+	}
+
+	// 4. 对每个节点的 Children 进行排序（根据SortOrder）
+	s.sortFrontendMenuTree(roots, permMap)
+
+	return roots
+}
+
+// sortFrontendMenuTree 递归排序前端格式的菜单树（根据SortOrder）
+func (s *AdminRoleService) sortFrontendMenuTree(nodes []*dto.FrontendMenuNode, permMap map[uint64]model.AdminPermissions) {
+	if len(nodes) == 0 {
+		return
+	}
+
+	// 对当前层进行排序（按 SortOrder）
+	// 需要找到每个节点对应的权限以获取SortOrder
+	for i := 0; i < len(nodes)-1; i++ {
+		for j := i + 1; j < len(nodes); j++ {
+			// 通过节点名称查找对应的权限（可能有重名，但在这个场景下应该唯一）
+			var sortOrderI, sortOrderJ int
+			for _, perm := range permMap {
+				if perm.PermissionName == nodes[i].Name {
+					sortOrderI = perm.SortOrder
+					break
+				}
+			}
+			for _, perm := range permMap {
+				if perm.PermissionName == nodes[j].Name {
+					sortOrderJ = perm.SortOrder
+					break
+				}
+			}
+			if sortOrderI > sortOrderJ {
+				nodes[i], nodes[j] = nodes[j], nodes[i]
+			}
+		}
+	}
+
+	// 递归排序子节点
+	for _, node := range nodes {
+		if len(node.Children) > 0 {
+			s.sortFrontendMenuTree(node.Children, permMap)
+		}
+	}
+}
+
+// GetRoleList 获取角色列表按分页
+// roleName 参数支持角色名称模糊搜索
+// status 参数：-1 表示查询所有状态，0 表示禁用，1 表示启用
+func (s *AdminRoleService) GetRoleList(ctx context.Context, page int, pageSize int, roleName string, status int) (*dto.RoleListResponse, error) {
+	var condition string
+	var args []interface{}
+
+	// 构建查询条件
+	var conditions []string
+	var conditionArgs []interface{}
+
+	// 如果 roleName 不为空，在 role_name 中搜索（支持模糊匹配）
+	if roleName != "" {
+		conditions = append(conditions, "role_name LIKE ?")
+		searchPattern := "%" + roleName + "%"
+		conditionArgs = append(conditionArgs, searchPattern)
+	}
+
+	// 如果 status 有效（通常是 0 或 1），添加状态过滤
+	// status = -1 表示查询所有状态
+	if status >= 0 {
+		conditions = append(conditions, "status = ?")
+		conditionArgs = append(conditionArgs, status)
+	}
+
+	// 组合条件
+	if len(conditions) > 0 {
+		condition = strings.Join(conditions, " AND ")
+		args = conditionArgs
+	}
+
+	// 执行查询
+	roles, total, err := s.AdminRoleRepository.FindWithPagination(ctx, page, pageSize, "role_id", true, condition, args...)
+	if err != nil {
+		return nil, err
+	}
+	items := s.toRoleListResponse(roles)
+	return &dto.RoleListResponse{
+		PageNo:      page,
+		PageSize:    pageSize,
+		ResultTotal: total,
+		List:        items,
+	}, err
+}
+
+// GetRoleDetail 根据角色ID，获取角色详情信息（包含层级结构的权限树）
+func (s *AdminRoleService) GetRoleDetail(ctx context.Context, roleID uint64) (*dto.RoleDetailResponse, error) {
+	// 1. 根据角色ID，获取角色详情信息
+	role, err := s.AdminRoleRepository.FindByRoleID(ctx, roleID)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return nil, nil
+	}
+
+	// 2. 根据角色ID，获取角色权限关联列表
+	rolePermissions, err := s.AdminRolePermissionsRepository.FindByRoleID(ctx, roleID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果角色没有权限，返回空权限树
+	if len(rolePermissions) == 0 {
+		return s.buildRoleDetailResponse(role, []*dto.RoleDetailPermissionTree{}), nil
+	}
+
+	// 3. 遍历权限列表，根据权限ID获取权限详情信息
+	permissionMap := make(map[uint64]*model.AdminPermissions)
+
+	for _, rp := range rolePermissions {
+		permission, err := s.AdminPermissionsRepository.FindByPermissionID(ctx, rp.PermissionID)
+		if err != nil {
+			continue // 如果权限不存在，跳过
+		}
+		permissionMap[permission.PermissionID] = permission
+	}
+
+	// 4. 获取所有父权限，构建完整的权限树
+	// 需要找到所有权限的父权限，即使父权限不在角色的权限列表中
+	allPermissions := s.collectAllParentPermissions(ctx, permissionMap)
+
+	// 5. 构建权限树结构
+	permissionTree := s.buildPermissionTree(allPermissions)
+
+	// 6. 最后构建角色详情响应
+	return s.buildRoleDetailResponse(role, permissionTree), nil
+}
+
+// UpdateRoleStatus 更新角色状态
+func (s *AdminRoleService) UpdateRoleStatus(ctx context.Context, roleID uint64, status int) error {
+	return s.AdminRoleRepository.UpdateByCondition(ctx, map[string]interface{}{"status": status}, "role_id = ?", roleID)
+}
+
+// UpdateRoleIsSystem 更新是否系统角色
+func (s *AdminRoleService) UpdateRoleIsSystem(ctx context.Context, roleID uint64, isSystem int) error {
+	return s.AdminRoleRepository.UpdateByCondition(ctx, map[string]interface{}{"is_system": isSystem}, "role_id = ?", roleID)
+}
+
+// DeleteRole 删除角色
+// 注意：删除角色前需要检查是否绑定了用户，如果绑定了用户则不能删除
+func (s *AdminRoleService) DeleteRole(ctx context.Context, roleID uint64) error {
+	// 1. 检查角色是否存在
+	role, err := s.AdminRoleRepository.FindOneByCondition(ctx, "role_id = ?", roleID)
+	if err != nil {
+		return err
+	}
+	if role == nil {
+		return fmt.Errorf("角色不存在")
+	}
+
+	// 2. 检查是否为系统角色，系统角色不能删除
+	if role.IsSystem == 1 {
+		return fmt.Errorf("系统角色不能删除")
+	}
+
+	// 3. 检查角色是否绑定了用户
+	userRoles, err := s.AdminUserRoleRepository.FindByRoleID(ctx, roleID)
+	if err != nil {
+		return err
+	}
+	if len(userRoles) > 0 {
+		return fmt.Errorf("该角色已绑定用户，无法删除")
+	}
+
+	// 4. 删除该角色的所有权限关联
+	rolePermissions, err := s.AdminRolePermissionsRepository.FindByRoleID(ctx, roleID)
+	if err != nil {
+		return fmt.Errorf("查询角色权限关联失败: %v", err)
+	}
+	for _, rp := range rolePermissions {
+		if err := s.AdminRolePermissionsRepository.Delete(ctx, &rp); err != nil {
+			return fmt.Errorf("删除角色权限关联失败: %v", err)
+		}
+	}
+
+	// 5. 删除角色
+	return s.AdminRoleRepository.Delete(ctx, role)
+}
+
+// GetEditRoleInfo 获取编辑角色信息（包含所有权限，当前角色拥有的权限标记为选中）
+func (s *AdminRoleService) GetEditRoleInfo(ctx context.Context, roleID uint64) (*dto.EditRoleInfoResponse, error) {
+	// 1. 根据角色ID，获取角色详情信息
+	role, err := s.AdminRoleRepository.FindOneByCondition(ctx, "role_id = ?", roleID)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return nil, fmt.Errorf("角色不存在")
+	}
+
+	// 2. 获取系统所有权限(只获取正常状态的权限)
+	allPermissions, err := s.AdminPermissionsRepository.FindByCondition(ctx, "1=1 and status = 1")
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 获取当前角色拥有的权限ID列表
+	rolePermissions, err := s.AdminRolePermissionsRepository.FindByRoleID(ctx, roleID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建权限ID集合，用于快速判断权限是否被选中
+	checkedPermissionIDs := make(map[uint64]bool)
+	for _, rp := range rolePermissions {
+		checkedPermissionIDs[rp.PermissionID] = true
+	}
+
+	// 4. 构建权限树结构，并标记选中状态
+	permissionTree := s.buildEditPermissionTree(allPermissions, checkedPermissionIDs)
+
+	// 5. 构建响应
+	return &dto.EditRoleInfoResponse{
+		RoleID:      role.RoleID,
+		RoleName:    role.RoleName,
+		RoleCode:    role.RoleCode,
+		Description: role.Description,
+		SortOrder:   role.SortOrder,
+		Status:      role.Status,
+		IsSystem:    role.IsSystem,
+		CreatedAt:   role.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:   role.UpdatedAt.Format("2006-01-02 15:04:05"),
+		Permissions: permissionTree,
+	}, nil
+}
+
+// UpdateRole 更新角色信息（含角色名称和权限）
+func (s *AdminRoleService) UpdateRole(ctx context.Context, req *dto.UpdateRoleRequest) error {
+	// 1. 检查角色是否存在
+	role, err := s.AdminRoleRepository.FindOneByCondition(ctx, "role_id = ?", req.RoleID)
+	if err != nil {
+		return err
+	}
+	if role == nil {
+		return fmt.Errorf("角色不存在")
+	}
+
+	// 2. 检查是否为系统角色，系统角色不能修改
+	if role.IsSystem == 1 {
+		return fmt.Errorf("系统角色不能修改")
+	}
+
+	// 3. 更新角色名称
+	if req.RoleName != "" {
+		err = s.AdminRoleRepository.UpdateByCondition(ctx, map[string]interface{}{
+			"role_name": req.RoleName,
+		}, "role_id = ?", req.RoleID)
+		if err != nil {
+			return fmt.Errorf("更新角色名称失败: %v", err)
+		}
+	}
+
+	// 4. 更新角色权限（删除旧权限，添加新权限）
+	// 4.1 先查找该角色的所有权限关联
+	oldRolePermissions, err := s.AdminRolePermissionsRepository.FindByRoleID(ctx, req.RoleID)
+	if err != nil {
+		return fmt.Errorf("查询角色权限失败: %v", err)
+	}
+	// 4.2 删除所有旧的权限关联
+	for _, rp := range oldRolePermissions {
+		err = s.AdminRolePermissionsRepository.Delete(ctx, &rp)
+		if err != nil {
+			return fmt.Errorf("删除角色权限失败: %v", err)
+		}
+	}
+
+	// 4.2 如果有新权限，批量创建权限关联
+	if len(req.PermissionIDs) > 0 {
+		// 验证权限ID是否存在
+		permissionMap := make(map[uint64]bool)
+		for _, permID := range req.PermissionIDs {
+			permission, err := s.AdminPermissionsRepository.FindByPermissionID(ctx, permID)
+			if err != nil || permission == nil {
+				return fmt.Errorf("权限ID %d 不存在", permID)
+			}
+			permissionMap[permID] = true
+		}
+
+		// 批量创建角色权限关联
+		rolePermissions := make([]model.AdminRolePermissions, 0, len(req.PermissionIDs))
+		for _, permID := range req.PermissionIDs {
+			rolePermissions = append(rolePermissions, model.AdminRolePermissions{
+				RoleID:       req.RoleID,
+				PermissionID: permID,
+			})
+		}
+
+		err = s.AdminRolePermissionsRepository.CreateBatch(ctx, rolePermissions)
+		if err != nil {
+			return fmt.Errorf("创建角色权限关联失败: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// AddRole 新增角色（同时创建角色和权限关联）
+// 在新增之前需要检查RoleCode是否被占用
+func (s *AdminRoleService) AddRole(ctx context.Context, req *dto.AddRoleRequest) error {
+	// 1. 检查RoleCode是否已存在
+	existRole, _ := s.AdminRoleRepository.FindByRoleCode(ctx, req.RoleCode)
+	if existRole != nil {
+		return fmt.Errorf("角色编码已存在")
+	}
+
+	// 2. 检查RoleName是否已存在
+	existRole, _ = s.AdminRoleRepository.FindByRoleName(ctx, req.RoleName)
+	if existRole != nil {
+		return fmt.Errorf("角色名称已存在")
+	}
+
+	// 2. 创建角色
+	role := &model.AdminRole{
+		RoleName:    req.RoleName,
+		RoleCode:    req.RoleCode,
+		Description: req.Description,
+		SortOrder:   req.SortOrder,
+		Status:      1,                  // 默认启用
+		IsSystem:    int8(req.IsSystem), // 是否系统角色：1是，0否
+	}
+	if err := s.AdminRoleRepository.Create(ctx, role); err != nil {
+		return fmt.Errorf("创建角色失败: %v", err)
+	}
+
+	// 3. 如果有权限，批量创建权限关联
+	if len(req.PermissionIDs) > 0 {
+		// 验证权限ID是否存在
+		for _, permID := range req.PermissionIDs {
+			permission, err := s.AdminPermissionsRepository.FindByPermissionID(ctx, permID)
+			if err != nil || permission == nil {
+				return fmt.Errorf("权限ID %d 不存在", permID)
+			}
+		}
+
+		// 批量创建角色权限关联（过滤已存在的关联）
+		rolePermissions := make([]model.AdminRolePermissions, 0, len(req.PermissionIDs))
+		for _, permID := range req.PermissionIDs {
+			// 检查是否已存在关联关系（防止重复）
+			existRolePermission, _ := s.AdminRolePermissionsRepository.FindByRoleIDAndPermissionID(ctx, role.RoleID, permID)
+			if existRolePermission == nil {
+				rolePermissions = append(rolePermissions, model.AdminRolePermissions{
+					RoleID:       role.RoleID,
+					PermissionID: permID,
+				})
+			}
+		}
+
+		// 如果有需要创建的关联关系，批量创建
+		if len(rolePermissions) > 0 {
+			if err := s.AdminRolePermissionsRepository.CreateBatch(ctx, rolePermissions); err != nil {
+				return fmt.Errorf("创建角色权限关联失败: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// AddUserRoles 批量创建用户角色关联关系
+// 在创建之前需要检查用户名和角色ID是否存在
+func (s *AdminRoleService) AddUserRoles(ctx context.Context, username string, roleIDs []uint64) error {
+	// 1. 通过用户名查找用户，检查用户是否存在
+	user, err := s.AdminUserRepository.FindOneByCondition(ctx, "username = ?", username)
+	if err != nil || user == nil {
+		return fmt.Errorf("用户名 %s 不存在", username)
+	}
+	userID := user.UserID
+
+	// 2. 验证角色ID是否存在
+	for _, roleID := range roleIDs {
+		role, err := s.AdminRoleRepository.FindByRoleID(ctx, roleID)
+		if err != nil || role == nil {
+			return fmt.Errorf("角色ID %d 不存在", roleID)
+		}
+	}
+
+	// 3. 批量创建用户角色关联关系（过滤已存在的关联）
+	userRoles := make([]model.AdminUserRole, 0, len(roleIDs))
+	for _, roleID := range roleIDs {
+		// 检查是否已存在关联关系（防止重复）
+		existUserRole, _ := s.AdminUserRoleRepository.FindByUserIDAndRoleID(ctx, userID, roleID)
+		if existUserRole == nil {
+			userRoles = append(userRoles, model.AdminUserRole{
+				UserID: userID,
+				RoleID: roleID,
+			})
+		}
+	}
+
+	// 4. 如果有需要创建的关联关系，批量创建
+	if len(userRoles) > 0 {
+		if err := s.AdminUserRoleRepository.CreateBatch(ctx, userRoles); err != nil {
+			return fmt.Errorf("批量创建用户角色关联关系失败: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// UpdateUserRoles 更新用户角色关联关系
+// 先删除用户的所有角色关联，然后批量创建新的角色关联
+func (s *AdminRoleService) UpdateUserRoles(ctx context.Context, userID uint64, roleIDs []uint64) error {
+	// 1. 检查用户是否存在
+	user, err := s.AdminUserRepository.FindByUserID(ctx, userID)
+	if err != nil || user == nil {
+		return fmt.Errorf("用户ID %d 不存在", userID)
+	}
+
+	// 2. 验证角色ID是否存在
+	for _, roleID := range roleIDs {
+		role, err := s.AdminRoleRepository.FindByRoleID(ctx, roleID)
+		if err != nil || role == nil {
+			return fmt.Errorf("角色ID %d 不存在", roleID)
+		}
+	}
+
+	// 3. 删除用户的所有旧角色关联
+	oldUserRoles, err := s.AdminUserRoleRepository.FindByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("查询用户角色关联失败: %v", err)
+	}
+	for _, userRole := range oldUserRoles {
+		if err := s.AdminUserRoleRepository.Delete(ctx, &userRole); err != nil {
+			return fmt.Errorf("删除用户角色关联失败: %v", err)
+		}
+	}
+
+	// 4. 批量创建新的用户角色关联关系
+	if len(roleIDs) > 0 {
+		userRoles := make([]model.AdminUserRole, 0, len(roleIDs))
+		for _, roleID := range roleIDs {
+			userRoles = append(userRoles, model.AdminUserRole{
+				UserID: userID,
+				RoleID: roleID,
+			})
+		}
+
+		if err := s.AdminUserRoleRepository.CreateBatch(ctx, userRoles); err != nil {
+			return fmt.Errorf("批量创建用户角色关联关系失败: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// GetAllPermissionsForAdd 获取所有权限（所有权限都是未选中状态）
+func (s *AdminRoleService) GetAllPermissions(ctx context.Context) ([]*dto.EditRolePermissionTree, error) {
+	// 1. 获取系统所有权限(状态为启用)
+	allPermissions, err := s.AdminPermissionsRepository.FindByCondition(ctx, "1=1 AND status = 1")
+	if err != nil {
+		return nil, fmt.Errorf("获取权限列表失败: %v", err)
+	}
+
+	// 2. 构建权限树结构（所有权限都是未选中状态）
+	checkedPermissionIDs := make(map[uint64]bool) // 空map，表示所有权限都未选中
+	permissionTree := s.buildEditPermissionTree(allPermissions, checkedPermissionIDs)
+
+	return permissionTree, nil
+}
+
+// ----------------------------- 内部方法 -----------------------------
+
+// collectAllParentPermissions 收集所有权限及其父权限
+// 递归获取所有父权限，即使父权限不在角色的权限列表中
+func (s *AdminRoleService) collectAllParentPermissions(ctx context.Context, permissionMap map[uint64]*model.AdminPermissions) map[uint64]*model.AdminPermissions {
+	allPermissions := make(map[uint64]*model.AdminPermissions)
+
+	// 复制已有的权限
+	for k, v := range permissionMap {
+		allPermissions[k] = v
+	}
+
+	// 递归获取所有父权限
+	for _, perm := range permissionMap {
+		s.collectParentRecursive(ctx, perm, allPermissions)
+	}
+
+	return allPermissions
+}
+
+// collectParentRecursive 递归收集父权限
+func (s *AdminRoleService) collectParentRecursive(ctx context.Context, permission *model.AdminPermissions, allPermissions map[uint64]*model.AdminPermissions) {
+	if permission.ParentID == 0 {
+		return // 没有父权限，直接返回
+	}
+
+	// 如果父权限已经在集合中，直接返回
+	if _, exists := allPermissions[permission.ParentID]; exists {
+		return
+	}
+
+	// 获取父权限
+	parent, err := s.AdminPermissionsRepository.FindByPermissionID(ctx, permission.ParentID)
+	if err != nil || parent == nil {
+		return // 父权限不存在，直接返回
+	}
+
+	// 添加到集合中
+	allPermissions[parent.PermissionID] = parent
+
+	// 递归获取父权限的父权限
+	s.collectParentRecursive(ctx, parent, allPermissions)
+}
+
+// buildPermissionTree 构建权限树结构
+func (s *AdminRoleService) buildPermissionTree(allPermissions map[uint64]*model.AdminPermissions) []*dto.RoleDetailPermissionTree {
+	// 将权限转换为树节点
+	treeMap := make(map[uint64]*dto.RoleDetailPermissionTree)
+	for _, perm := range allPermissions {
+		treeMap[perm.PermissionID] = &dto.RoleDetailPermissionTree{
+			PermissionID:   perm.PermissionID,
+			ParentID:       perm.ParentID,
+			PermissionName: perm.PermissionName,
+			PermissionCode: perm.PermissionCode,
+			PermissionType: perm.PermissionType,
+			Path:           perm.Path,
+			Icon:           perm.Icon,
+			SortOrder:      perm.SortOrder,
+			Status:         perm.Status,
+			IsSystem:       perm.IsSystem,
+			Checked:        true,
+			UpdatedAt:      perm.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt:      perm.CreatedAt.Format("2006-01-02 15:04:05"),
+			Children:       make([]*dto.RoleDetailPermissionTree, 0),
+		}
+	}
+
+	// 构建树结构
+	var roots []*dto.RoleDetailPermissionTree
+	for _, treeNode := range treeMap {
+		if treeNode.ParentID == 0 {
+			// 根节点
+			roots = append(roots, treeNode)
+		} else {
+			// 子节点，添加到父节点的 Children 中
+			if parent, exists := treeMap[treeNode.ParentID]; exists {
+				parent.Children = append(parent.Children, treeNode)
+			}
+		}
+	}
+
+	// 对每个节点的 Children 进行排序
+	s.sortPermissionTree(roots)
+
+	return roots
+}
+
+// sortPermissionTree 递归排序权限树
+func (s *AdminRoleService) sortPermissionTree(nodes []*dto.RoleDetailPermissionTree) {
+	if len(nodes) == 0 {
+		return
+	}
+
+	// 对当前层进行排序（按 SortOrder）
+	for i := 0; i < len(nodes)-1; i++ {
+		for j := i + 1; j < len(nodes); j++ {
+			if nodes[i].SortOrder > nodes[j].SortOrder {
+				nodes[i], nodes[j] = nodes[j], nodes[i]
+			}
+		}
+	}
+
+	// 递归排序子节点
+	for _, node := range nodes {
+		if len(node.Children) > 0 {
+			s.sortPermissionTree(node.Children)
+		}
+	}
+}
+
+// buildRoleDetailResponse 构建角色详情响应
+func (s *AdminRoleService) buildRoleDetailResponse(role *model.AdminRole, permissionTree []*dto.RoleDetailPermissionTree) *dto.RoleDetailResponse {
+	return &dto.RoleDetailResponse{
+		RoleID:      role.RoleID,
+		RoleName:    role.RoleName,
+		RoleCode:    role.RoleCode,
+		Description: role.Description,
+		SortOrder:   role.SortOrder,
+		Status:      role.Status,
+		IsSystem:    role.IsSystem,
+		CreatedAt:   role.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:   role.UpdatedAt.Format("2006-01-02 15:04:05"),
+		Permissions: permissionTree,
+	}
+}
+
+// 将角色列表转换为角色列表响应
+func (s *AdminRoleService) toRoleListResponse(roles []model.AdminRole) []*dto.RoleListResponseItem {
+	if len(roles) == 0 {
+		return nil
+	}
+
+	items := make([]*dto.RoleListResponseItem, 0)
+	for _, role := range roles {
+		items = append(items, &dto.RoleListResponseItem{
+			RoleID:      role.RoleID,
+			RoleName:    role.RoleName,
+			RoleCode:    role.RoleCode,
+			UrlName:     "角色详情",
+			DetailUrl:   "/admin/tpl/page/account/role-detail.html?role_id=" + strconv.FormatUint(role.RoleID, 10),
+			Description: role.Description,
+			SortOrder:   role.SortOrder,
+			Status:      role.Status,
+			IsSystem:    role.IsSystem,
+			CreatedAt:   role.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:   role.UpdatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+	return items
+}
+
+// buildEditPermissionTree 构建编辑权限树结构，并标记选中状态
+func (s *AdminRoleService) buildEditPermissionTree(allPermissions []model.AdminPermissions, checkedPermissionIDs map[uint64]bool) []*dto.EditRolePermissionTree {
+	// 将权限转换为树节点
+	treeMap := make(map[uint64]*dto.EditRolePermissionTree)
+	for _, perm := range allPermissions {
+		checked := checkedPermissionIDs[perm.PermissionID]
+		treeMap[perm.PermissionID] = &dto.EditRolePermissionTree{
+			PermissionID:   perm.PermissionID,
+			ParentID:       perm.ParentID,
+			PermissionName: perm.PermissionName,
+			PermissionCode: perm.PermissionCode,
+			PermissionType: perm.PermissionType,
+			Path:           perm.Path,
+			Icon:           perm.Icon,
+			SortOrder:      perm.SortOrder,
+			Status:         perm.Status,
+			IsSystem:       perm.IsSystem,
+			UpdatedAt:      perm.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt:      perm.CreatedAt.Format("2006-01-02 15:04:05"),
+			Checked:        checked,
+			Children:       make([]*dto.EditRolePermissionTree, 0),
+		}
+	}
+
+	// 构建树结构
+	var roots []*dto.EditRolePermissionTree
+	for _, treeNode := range treeMap {
+		if treeNode.ParentID == 0 {
+			// 根节点
+			roots = append(roots, treeNode)
+		} else {
+			// 子节点，添加到父节点的 Children 中
+			if parent, exists := treeMap[treeNode.ParentID]; exists {
+				parent.Children = append(parent.Children, treeNode)
+			}
+		}
+	}
+
+	// 对每个节点的 Children 进行排序
+	s.sortEditPermissionTree(roots)
+
+	return roots
+}
+
+// sortEditPermissionTree 递归排序编辑权限树
+func (s *AdminRoleService) sortEditPermissionTree(nodes []*dto.EditRolePermissionTree) {
+	if len(nodes) == 0 {
+		return
+	}
+
+	// 对当前层进行排序（按 SortOrder）
+	for i := 0; i < len(nodes)-1; i++ {
+		for j := i + 1; j < len(nodes); j++ {
+			if nodes[i].SortOrder > nodes[j].SortOrder {
+				nodes[i], nodes[j] = nodes[j], nodes[i]
+			}
+		}
+	}
+
+	// 递归排序子节点
+	for _, node := range nodes {
+		if len(node.Children) > 0 {
+			s.sortEditPermissionTree(node.Children)
+		}
+	}
+}

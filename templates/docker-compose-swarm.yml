@@ -33,7 +33,7 @@ services:
   app:
     image: ${REGISTRY_URL}/${APP_NAME}:${VERSION} # 设置镜像名称
     environment: # 给容器设置环境变量
-      - MYSQL_DSN=${DB_DSN:-apps:apps@tcp(mysql:3306)/kf_ai?charset=utf8mb4&parseTime=True&loc=Local}
+      - MYSQL_DSN=${DB_DSN:-root:root@tcp(mysql:3306)/admin?charset=utf8mb4&parseTime=True&loc=Local}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379} # 设置redis连接
     env_file: # 设置环境变量文件
       - .env.docker-compose # 设置环境变量文件
@@ -61,9 +61,9 @@ services:
     image: mysql:8
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${DB_NAME:-kf_ai} 
+      MYSQL_DATABASE: ${DB_NAME:-admin} 
       MYSQL_USER: ${DB_USER:-apps}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-apps}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-apps_password}
     healthcheck: # 设置健康检查
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s

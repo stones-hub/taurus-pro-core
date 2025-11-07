@@ -1,0 +1,114 @@
+package helper
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/redisx"
+)
+
+// LoginAttemptManagerRedis Redis 版登录尝试管理器（与接口一致）
+// 简化实现：以 IP 为维度计数与封禁。可扩展为 IP+登录类型+账号 三元维度进行更精细控制。
+type LoginAttemptManagerRedis struct {
+	redis *redisx.RedisClient
+}
+
+func NewLoginAttemptManagerRedis() *LoginAttemptManagerRedis {
+	return &LoginAttemptManagerRedis{
+		redis: taurus.Container.Redis,
+	}
+}
+
+func (m *LoginAttemptManagerRedis) key(ip string) string { return fmt.Sprintf("login:attempt:%s", ip) }
+
+func (m *LoginAttemptManagerRedis) blockKey(ip string) string {
+	return fmt.Sprintf("login:block:%s", ip)
+}
+
+// RecordFailedAttempt 失败+1，5次则封锁30分钟
+func (m *LoginAttemptManagerRedis) RecordFailedAttempt(ip string) {
+	ctx := context.Background()
+	if ip == "" {
+		return
+	}
+	key := m.key(ip)
+	// 读取+1（简化实现）
+	cur, _ := m.redis.Get(ctx, key)
+	var cnt int
+	if cur == "" {
+		cnt = 1
+	} else {
+		var prev int
+		if _, err := fmt.Sscan(cur, &prev); err != nil {
+			prev = 0
+		}
+		cnt = prev + 1
+	}
+	_ = m.redis.Set(ctx, key, fmt.Sprintf("%d", cnt), time.Hour)
+	if cnt >= 5 {
+		_ = m.redis.Set(ctx, m.blockKey(ip), "1", 30*time.Minute)
+	}
+}
+
+func (m *LoginAttemptManagerRedis) RecordSuccessfulAttempt(ip string) {
+	ctx := context.Background()
+	if ip == "" {
+		return
+	}
+	_ = m.redis.Del(ctx, m.key(ip))
+	_ = m.redis.Del(ctx, m.blockKey(ip))
+}
+
+func (m *LoginAttemptManagerRedis) IsBlocked(ip string) bool {
+	ctx := context.Background()
+	if ip == "" {
+		return false
+	}
+	v, err := m.redis.Get(ctx, m.blockKey(ip))
+	return err == nil && v != ""
+}
+
+// GetAttemptCount 获取当前失败次数（按实现维度：IP）
+func (m *LoginAttemptManagerRedis) GetAttemptCount(ip string) int {
+	ctx := context.Background()
+	if ip == "" {
+		return 0
+	}
+	cur, _ := m.redis.Get(ctx, m.key(ip))
+	if cur == "" {
+		return 0
+	}
+	var cnt int
+	if _, err := fmt.Sscan(cur, &cnt); err != nil {
+		return 0
+	}
+	return cnt
+}
+
+// Cleanup 清理内部使用的键空间（简化实现：全量扫描需 Redis 游标，这里保留空实现）
+// 若后续需要，可增加带前缀扫描的实现或带入维度参数。
+func (m *LoginAttemptManagerRedis) Cleanup() {
+	ctx := context.Background()
+	client := m.redis.GetClient()
+	prefixes := []string{"login:attempt:", "login:block:"}
+	for _, p := range prefixes {
+		var cursor uint64
+		pattern := p + "*"
+		for {
+			keys, next, err := client.Scan(ctx, cursor, pattern, 1000).Result()
+			if err != nil {
+				break
+			}
+			if len(keys) > 0 {
+				_ = m.redis.Del(ctx, keys...)
+			}
+			cursor = next
+			if cursor == 0 {
+				break
+			}
+		}
+	}
+}

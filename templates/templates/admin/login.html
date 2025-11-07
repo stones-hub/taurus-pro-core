@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>登录-Taurus Pro 后台管理系统</title>
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="icon" href="/static/images/favicon.png" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/login.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/lib/jquery@3.3.1/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <style>
+      .mt-30 {
+        margin-top: 25px;
+      }
+
+      .el-divider--horizontal {
+        border-top: 1px solid #dcdfe6;
+        display: block;
+        height: 1px;
+        margin: 30px 0 0;
+        width: 100%;
+      }
+
+      .el-divider__text {
+        background-color: #fff;
+        color: oklch(0.56 0.03 264.34);
+        font-size: 14px;
+        font-weight: 500;
+        padding: 0 20px;
+        position: absolute;
+      }
+
+      .el-divider__text.is-center {
+        left: 50%;
+        transform: translate(-50%) translateY(-50%);
+      }
+
+      .other-login {
+        display: flex;
+        justify-content: space-around;
+      }
+
+      .phone-code__box {
+        display: flex;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app">
+      <div class="signin">
+        <div class="signin__wrap">
+          <div class="signin__logo">
+            <img src="/static/images/img-logo_2.png" alt="" />
+          </div>
+          <div class="login">
+            <!--S 账密登录 -->
+            <div
+              class="login__pwd"
+              v-if="currentLoginType === LOGIN_COMPONENTS.account.component"
+            >
+              <ui-textbox
+                floating-label
+                label="用户名"
+                v-model="form.account.username"
+                :autofocus="true"
+              ></ui-textbox>
+              <ui-textbox
+                floating-label
+                label="密码"
+                v-model="form.account.password"
+                type="password"
+              >
+              </ui-textbox>
+              <div class="btn-groud ui-text-center">
+                <ui-button
+                  color="primary"
+                  :loading="submitLoading"
+                  @click="handleLoginSubmit()"
+                  >登录</ui-button
+                >
+              </div>
+            </div>
+            <!-- E 账密登录 -->
+
+            <!-- S 手机号登录 -->
+            <div
+              class="login__pwd login__phone"
+              v-if="currentLoginType === LOGIN_COMPONENTS.phone.component"
+            >
+              <ui-textbox
+                floating-label
+                label="手机号"
+                v-model="form.phone.phone"
+                :autofocus="true"
+              ></ui-textbox>
+              <div class="phone-code__box">
+                <ui-textbox
+                  floating-label
+                  label="验证码"
+                  v-model="form.phone.code"
+                >
+                </ui-textbox>
+                <ui-button
+                  style="height: 48px"
+                  slot="icon"
+                  size="large"
+                  @click="handleSendCode"
+                  :disabled="coolTime>0"
+                  >{{ coolTime > 0 ? coolTime+'秒' : '获取验证码'}}</ui-button
+                >
+              </div>
+              <div class="btn-groud ui-text-center">
+                <ui-button
+                  color="primary"
+                  :loading="submitLoading"
+                  @click="handleLoginSubmit"
+                  >登录</ui-button
+                >
+              </div>
+            </div>
+            <!-- E 手机号登录 -->
+
+            <!-- S 邮箱登录 -->
+            <!--
+            <div
+              class="login__pwd login__email"
+              v-if="currentLoginType === LOGIN_COMPONENTS.email.component"
+            >
+              <ui-textbox
+                floating-label
+                label="邮箱"
+                v-model="form.email.email"
+                :autofocus="true"
+              ></ui-textbox>
+              <div class="phone-code__box">
+                <ui-textbox
+                  floating-label
+                  label="验证码"
+                  v-model="form.email.code"
+                  type="password"
+                >
+                </ui-textbox>
+                <ui-button
+                  style="height: 48px"
+                  slot="icon"
+                  size="large"
+                  @click="handleSendCode"
+                  :disabled="coolTime>0"
+                  >{{ coolTime > 0 ? coolTime+'秒' : '获取验证码'}}</ui-button
+                >
+              </div>
+              <div class="btn-groud ui-text-center">
+                <ui-button
+                  color="primary"
+                  :loading="submitLoading"
+                  @click="handleLoginSubmit"
+                  >登录</ui-button
+                >
+              </div>
+            </div>-->
+            <!-- E 邮箱登录 -->
+          
+            <!-- S 企业微信登录 -->
+            <div
+              class="login__pwd login__wechat"
+              v-if="currentLoginType === LOGIN_COMPONENTS.wechat.component"
+            >
+              <h2>扫码登录</h2>
+            </div>
+            <!-- E 企业微信登录 -->
+
+            <!-- S 其他方式登录 -->
+            <div class="el-divider--horizontal">
+              <div class="el-divider__text is-center">
+                <p>其他方式登录</p>
+              </div>
+            </div>
+            <div class="other-login mt-30">
+              <ui-button
+                v-for="(item,index) in otherLoginMethods"
+                :key="index"
+                @click="onChangeCompoent(item.component)"
+                >{{item.label}}</ui-button
+              >
+            </div>
+            <!-- E 其他方式登录 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // console.log(API_CONFIG);
+
+      // 登录方式
+      const LOGIN_COMPONENTS = {
+        account: {
+          key: 'account',
+          component: API_CONFIG.LOGIN_TYPE.USERNAME,
+          label: '账号密码登录'
+        },
+        phone: {
+          key: 'phone',
+          component: API_CONFIG.LOGIN_TYPE.MOBILE,
+          label: '手机号登录'
+        },
+        // email: {
+        //   key: 'email',
+        //   component: API_CONFIG.LOGIN_TYPE.EMAIL,
+        //   label: '邮箱登录'
+        // },
+        wechat: {
+          key: 'wechat',
+          component: API_CONFIG.LOGIN_TYPE.WECHAT_WORK,
+          label: '企业微信登录'
+        }
+      };
+      // 表单验证规则
+      const validationRules = {
+        [LOGIN_COMPONENTS.account.component]: {
+          username: { required: true, message: '请填写用户名' },
+          password: { required: true, min: 6, message: '密码至少6位' }
+        },
+        [LOGIN_COMPONENTS.phone.component]: {
+          phone: {
+            required: true,
+            pattern: /^1[3-9]\d{9}$/,
+            message: '手机号格式不正确'
+          },
+          code: { required: true, message: '请填写验证码' }
+        },
+        /*[LOGIN_COMPONENTS.email.component]: {
+          email: {
+            required: true,
+            pattern: /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/,
+            message: '邮箱格式不正确'
+          },
+          code: { required: true, message: '请填写验证码' }
+        }*/
+      };
+      var TIME_COUNT = 60; // 验证码倒计时60秒
+      NUI({
+        data: {
+          currentLoginType: LOGIN_COMPONENTS.phone.component, // 当前登录方式
+          submitLoading: false,
+          // 登录表单
+          form: {
+            account: {
+              username: '',
+              password: ''
+            },
+            phone: {
+              phone: '',
+              code: ''
+            },
+            /*email: {
+              email: '',
+              code: ''
+            }*/
+          },
+          /** 倒计时 */
+          timer: null,
+          coolTime: 0,
+          loginFailCount: 0,
+          lockTime: 0, 
+          loginRequest: { // 登录请求参数
+            login_type: '',
+            login_value: '',
+            password: '',
+            code: ''
+          }
+        },
+        computed: {
+          otherLoginMethods() {
+            return Object.values(LOGIN_COMPONENTS).filter(
+              (item) => item.component !== this.currentLoginType
+            );
+          },
+          currentLoginTypeKey() {
+            return Object.values(LOGIN_COMPONENTS).find(
+              (item) => item.component === this.currentLoginType
+            ).key;
+          }
+        },
+        methods: {
+          // 表单验证
+          validateForm() {
+            // 检查是否被锁定
+            if (this.lockTime > 0) {
+              tools.showMsg(`操作过于频繁，请${this.lockTime}秒后重试`, 0);
+              return false;
+            }
+
+            const rules = validationRules[this.currentLoginType];
+            for (const [field, rule] of Object.entries(rules)) {
+              const value = this.form[this.currentLoginTypeKey][field];
+              if (rule.required && !value) {
+                tools.showMsg(rule.message, 0);
+                return false;
+              }
+              if (rule.pattern && value && !rule.pattern.test(value)) {
+                tools.showMsg(rule.message, 0);
+                return false;
+              }
+              if (rule.min && value && value.length < rule.min) {
+                tools.showMsg(rule.message, 0);
+                return false;
+              }
+            }
+            return true;
+          },
+
+          // 发送验证码前的验证
+          validateBeforeSendCode() {
+            if (this.currentLoginType === LOGIN_COMPONENTS.phone.component) {
+              const phone = this.form.phone.phone;
+              if (!phone) {
+                tools.showMsg('请填写手机号', 0);
+                return false;
+              }
+              if (!/^1[3-9]\d{9}$/.test(phone)) {
+                tools.showMsg('手机号格式不正确', 0);
+                return false;
+              }
+            } else if (
+              this.currentLoginType === LOGIN_COMPONENTS.email.component
+            ) {
+              const email = this.form.email.email;
+              if (!email) {
+                tools.showMsg('请填写邮箱', 0);
+                return false;
+              }
+              if (
+                !/^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(
+                  email
+                )
+              ) {
+                tools.showMsg('邮箱格式不正确', 0);
+                return false;
+              }
+            }
+            return true;
+          },
+
+          // 切换登录方式
+          onChangeCompoent(loginType) {
+            this.currentLoginType = loginType;
+          },
+
+          // 运行倒计时
+          runTimer() {
+            this.coolTime = TIME_COUNT;
+            this.timer = setInterval(() => {
+              if (this.coolTime > 0) {
+                this.coolTime--;
+              } else {
+                clearInterval(this.timer);
+                this.timer = null;
+              }
+            }, 1000);
+          },
+
+          // 处理发送验证码
+          handleSendCode() {
+            if (!this.validateBeforeSendCode()) return;
+
+            console.log(app);
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.SEND_CODE),
+              data: {
+                login_type: this.currentLoginType,
+                login_value: this.form.phone.phone
+              },
+              success: (data) => {
+                console.log(data);
+                if (data && data.code == 0) {
+                  this.runTimer();
+                  tools.showMsg('验证码已发送', 1);
+                } else {
+                  tools.showMsg(data.message || '发送失败', 0);
+                }
+              },
+              error: (error) => {
+                console.log(error);
+              }
+            });
+
+
+
+          },
+
+          // 更新锁定时间
+          updateLockTime() {
+            if (this.lockTime > 0) {
+              const timer = setInterval(() => {
+                this.lockTime--;
+                if (this.lockTime <= 0) {
+                  clearInterval(timer);
+                  this.loginFailCount = 0;
+                }
+              }, 1000);
+            }
+          },
+
+          // 处理登录提交
+          handleLoginSubmit() {
+            if (!this.validateForm()) return;
+            this.submitLoading = true;
+            // 转换请求参数
+            this.setLoginRequest();
+            app.ajax({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.LOGIN),
+              data: JSON.stringify(this.loginRequest),
+              success: (res) => {
+                console.log(res);
+                this.submitLoading = false;
+                if (res && res.code == 0) {
+                  tools.showMsg('登录成功', 1);
+                  // 这里可以添加跳转逻辑
+                  // tools.jump('/');
+                  tools.jump(API_CONFIG.PAGE.HOME);
+                } else {
+                  // 登录失败处理
+                  this.loginFailCount++;
+                  console.log(res);
+                  tools.showMsg(res.message || '登录失败', 0);
+                  // 失败次数处理
+                  if (this.loginFailCount >= 3) {
+                    this.lockTime = 30; // 锁定30秒
+                    this.updateLockTime();
+                  }
+                }
+              },
+              error: (error) => {
+                console.log(error);
+                tools.showMsg(error.message || '登录失败', 0);
+              }, 
+              contentType: 'application/json',
+            });
+          },
+
+          setLoginRequest() { // 设置登录请求参数
+            switch (this.currentLoginType) {
+              case API_CONFIG.LOGIN_TYPE.USERNAME:
+                NUI.set(this, 'loginRequest', {
+                  login_type: this.currentLoginType,
+                  login_value: this.form.account.username,
+                  password: this.form.account.password,
+                  code: ''
+                });
+                break;
+              case API_CONFIG.LOGIN_TYPE.MOBILE:
+                NUI.set(this, 'loginRequest', {
+                  login_type: this.currentLoginType,
+                  login_value: this.form.phone.phone,
+                  password: '',
+                  code: this.form.phone.code
+                });
+                break;
+              case API_CONFIG.LOGIN_TYPE.EMAIL:
+                NUI.set(this, 'loginRequest', {
+                  login_type: this.currentLoginType,
+                  login_value: this.form.email.email,
+                  password: '',
+                  code: this.form.email.code
+                });
+                break;
+              case API_CONFIG.LOGIN_TYPE.WECHAT_WORK:
+                NUI.set(this, 'loginRequest', {
+                  login_type: this.currentLoginType,
+                  login_value: '',
+                  password: '',
+                  code: '' // TODO
+                });
+                break;
+            }
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

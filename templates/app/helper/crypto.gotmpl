@@ -1,0 +1,25 @@
+package helper
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+)
+
+// GenerateSalt 生成随机盐值
+func GenerateSalt() string {
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
+
+// HashPassword 使用盐值哈希密码
+func HashPassword(password, salt string) string {
+	hash := sha256.Sum256([]byte(password + salt))
+	return hex.EncodeToString(hash[:])
+}
+
+// VerifyPassword 验证密码
+func VerifyPassword(password, hashedPassword, salt string) bool {
+	return HashPassword(password, salt) == hashedPassword
+}

@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">个人信息管理</div>
+
+      <!-- 基本信息 -->
+      <div class="form-section-divider">
+        <span class="divider-text">基本信息</span>
+      </div>
+      <div class="my-form ui-grid">
+        <!-- 用户ID -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">用户ID：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.user_id"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 用户名 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">用户名：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.username"
+            placeholder="请输入用户名"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 真实姓名 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">真实姓名：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="profileForm.realname"
+            placeholder="请输入真实姓名"
+          ></ui-textbox>
+        </div>
+        <!-- 昵称 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">昵称：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="profileForm.nickname"
+            placeholder="请输入昵称"
+          ></ui-textbox>
+        </div>
+        <!-- 邮箱 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">邮箱：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="profileForm.email"
+            placeholder="请输入邮箱"
+          ></ui-textbox>
+        </div>
+        <!-- 性别 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">性别：</label>
+          <ui-select
+            class="form-control"
+            v-model="profileForm.gender"
+            placeholder="请选择性别"
+            :options="select.gender"
+            clearable
+          >
+          </ui-select>
+        </div>
+        <!-- 生日 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">生日：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="profileForm.birthday"
+          ></ui-textbox>
+        </div>
+        <!-- 职位 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">职位：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.position"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 状态 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">状态：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="statusText"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 最后登录时间 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">最后登录时间：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.last_login_time"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 最后登录IP -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">最后登录IP：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.last_login_ip"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 创建时间 -->
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">创建时间：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.created_at"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+      </div>
+      <!-- 操作按钮(基本信息修改按钮) -->
+      <div class="form-group ui-grid-cell col-24" style="text-align: right;">
+        <div class="btn-group">
+          <ui-button
+            v-if="app.hasButtonPermission('system.profile.info.updateProfile')"
+            color="primary"
+            @click="onUpdateProfile"
+            :disabled="profileBtn.disabled"
+            >{{profileBtn.text}}</ui-button
+          >
+        </div>
+      </div>
+
+      <!-- 密码修改 -->
+      <div class="form-section-divider">
+        <span class="divider-text">修改密码</span>
+      </div>
+      <!-- 原密码 -->
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>原密码：</label>
+          <ui-textbox
+            class="form-control"
+            type="password"
+            placeholder="请输入原密码"
+            v-model="passwordForm.old_password"
+          ></ui-textbox>
+        </div>
+      </div>
+      <!-- 新密码 -->
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>新密码：</label>
+          <ui-textbox
+            class="form-control"
+            type="password"
+            placeholder="请输入新密码（6-20位，包含字母和数字）"
+            v-model="passwordForm.new_password"
+          ></ui-textbox>
+        </div>
+      </div>
+      <!-- 确认新密码 -->
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>确认新密码：</label>
+          <ui-textbox
+            class="form-control"
+            type="password"
+            placeholder="请再次输入新密码"
+            v-model="passwordForm.confirm_password"
+          ></ui-textbox>
+        </div>
+      </div>
+      <!-- 操作按钮 -->
+      <div class="form-group ui-grid-cell col-24" style="text-align: right;">
+        <div class="btn-group">
+            <ui-button
+                v-if="app.hasButtonPermission('system.profile.info.password')"
+                color="primary"
+                @click="onChangePassword"
+                :disabled="passwordBtn.disabled"
+                >{{passwordBtn.text}}</ui-button
+            >
+        </div>
+      </div>
+      
+
+      <!-- 手机号管理 -->
+      <div class="form-section-divider">
+        <span class="divider-text">手机号管理</span>
+      </div>
+      <div class="my-form ui-grid">
+        <!-- 当前手机号(已绑定手机号时显示) -->
+        <div class="form-group ui-grid-cell col-8" v-if="userInfo.mobile">
+          <label class="control-label">当前手机号：</label>
+          <ui-textbox
+            class="form-control"
+            v-model="userInfo.mobile"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+        <!-- 手机号输入框(未绑定手机号时显示) -->
+        <div class="form-group ui-grid-cell col-8" v-if="!userInfo.mobile">
+          <label class="control-label" required>手机号：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入手机号"
+            v-model="mobileForm.mobile"
+          ></ui-textbox>
+        </div>
+      </div>
+       <!-- 验证码输入和发送按钮（绑定和解绑都需要） -->
+       <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-16">
+          <label class="control-label" required>验证码：</label>
+          <div style="display: flex; gap: 10px; align-items: flex-end;">
+            <div style="flex: 1;">
+              <ui-textbox
+                class="form-control"
+                placeholder="请输入验证码"
+                v-model="mobileForm.code"
+              ></ui-textbox>
+            </div>
+            <ui-button
+              @click="onSendCode"
+              :disabled="codeBtn.disabled"
+              >{{codeBtn.text}}</ui-button
+            >
+          </div>
+        </div>
+      </div>
+      <!-- 操作按钮(手机号管理按钮) -->
+      <div class="form-group ui-grid-cell col-24" style="text-align: right;">
+        <div class="btn-group">
+        <ui-button
+            v-if="userInfo.mobile && app.hasButtonPermission('system.profile.info.mobile')"
+            color="primary"
+            @click="onUnbindMobile"
+            :disabled="mobileBtn.disabled"
+            >解绑手机号</ui-button
+        >
+        <ui-button
+            v-if="!userInfo.mobile && app.hasButtonPermission('system.profile.info.mobile')"
+            color="primary"
+            @click="onBindMobile"
+            :disabled="mobileBtn.disabled"
+            >绑定手机号</ui-button
+        >
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          userInfo: {
+            user_id: 0,
+            username: '',
+            realname: '',
+            nickname: '',
+            avatar: '',
+            mobile: null,
+            email: null,
+            gender: 0,
+            birthday: '',
+            position: '',
+            status: 1,
+            user_source: 1,
+            last_login_time: '',
+            last_login_ip: '',
+            created_at: '',
+            updated_at: ''
+          },
+          passwordForm: {
+            old_password: '',
+            new_password: '',
+            confirm_password: ''
+          },
+          mobileForm: {
+            mobile: '',
+            code: ''
+          },
+          profileForm: {
+            realname: '',
+            nickname: '',
+            email: '',
+            gender: 0,
+            birthday: ''
+          },
+          passwordBtn: {
+            disabled: false,
+            text: '修改密码'
+          },
+          profileBtn: {
+            disabled: false,
+            text: '保存'
+          },
+          mobileBtn: {
+            disabled: false,
+            text: '绑定手机号'
+          },
+          codeBtn: {
+            disabled: false,
+            text: '发送验证码',
+            countdown: 0
+          },
+          select: {
+            gender: [
+              {
+                value: '0',
+                label: '未知'
+              },
+              {
+                value: '1',
+                label: '男'
+              },
+              {
+                value: '2',
+                label: '女'
+              }
+            ]
+          }
+        },
+        computed: {
+          statusText: function() {
+            var statusMap = {
+              1: '启用',
+              0: '禁用',
+              '-1': '已删除'
+            };
+            return statusMap[this.userInfo.status] || '未知';
+          }
+        },
+        created() {
+          this.loadUserInfo();
+        },
+        methods: {
+          // 加载用户信息
+          loadUserInfo() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.CURRENT_INFO),
+              data: {},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  this.userInfo = res.data || {};
+                  // 初始化编辑表单
+                  this.profileForm = {
+                    realname: this.userInfo.realname || '',
+                    nickname: this.userInfo.nickname || '',
+                    email: this.userInfo.email || '',
+                    gender: this.userInfo.gender || 0,
+                    birthday: this.userInfo.birthday || ''
+                  };
+                  // 如果手机号是空字符串，将其设置为null以便v-if判断
+                  if (this.userInfo.mobile === '') {
+                    this.userInfo.mobile = null;
+                  }
+
+                  // 初始化手机号表单
+                  this.mobileForm = {
+                    mobile: '',
+                    code: ''
+                  };
+                } else {
+                  tools.showMsg(res.message || '获取用户信息失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取用户信息失败', 0);
+              }
+            });
+          },
+          // 更新个人信息
+          onUpdateProfile() {
+            // 表单校验 - 真实姓名
+            var realnameResult = app.validateRealname(this.profileForm.realname);
+            if (!realnameResult.valid) {
+              tools.showMsg(realnameResult.message, 0);
+              return;
+            }
+
+            // 表单校验 - 昵称
+            var nicknameResult = app.validateNickname(this.profileForm.nickname);
+            if (!nicknameResult.valid) {
+              tools.showMsg(nicknameResult.message, 0);
+              return;
+            }
+
+            // 表单校验 - 邮箱
+            var emailValue = this.profileForm.email;
+            if (!emailValue || emailValue.trim() === '') {
+              emailValue = 'default@example.com';
+            }
+            var emailResult = app.validateEmail(emailValue);
+            if (!emailResult.valid) {
+              tools.showMsg(emailResult.message, 0);
+              return;
+            }
+
+            // 表单校验 - 生日
+            var birthdayValue = this.profileForm.birthday;
+            if (!birthdayValue || birthdayValue.trim() === '') {
+              birthdayValue = '1900-01-01';
+            }
+            var birthdayResult = app.validateBirthday(birthdayValue);
+            if (!birthdayResult.valid) {
+              tools.showMsg(birthdayResult.message, 0);
+              return;
+            }
+
+            // 设置按钮状态
+            this.profileBtn.disabled = true;
+            this.profileBtn.text = '保存中...';
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.UPDATE_PROFILE),
+              data: {
+                realname: this.profileForm.realname.trim(),
+                nickname: this.profileForm.nickname.trim(),
+                email: emailValue,
+                gender: this.profileForm.gender,
+                birthday: birthdayValue
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg('个人信息更新成功', 1);
+                  // 重新加载用户信息
+                  this.loadUserInfo();
+                } else {
+                  tools.showMsg(res.message || '个人信息更新失败', 0);
+                }
+                this.profileBtn.disabled = false;
+                this.profileBtn.text = '保存';
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '个人信息更新失败', 0);
+                this.profileBtn.disabled = false;
+                this.profileBtn.text = '保存';
+              }
+            });
+          },
+          // 修改密码
+          onChangePassword() {
+            // 表单校验 - 原密码
+            if (!this.passwordForm.old_password || this.passwordForm.old_password.trim() === '') {
+              tools.showMsg('请输入原密码', 0);
+              return;
+            }
+
+            // 表单校验 - 新密码
+            var newPasswordResult = app.validatePassword(this.passwordForm.new_password);
+            if (!newPasswordResult.valid) {
+              tools.showMsg(newPasswordResult.message, 0);
+              return;
+            }
+
+            // 表单校验 - 确认密码
+            if (this.passwordForm.new_password !== this.passwordForm.confirm_password) {
+              tools.showMsg('两次输入的新密码不一致', 0);
+              return;
+            }
+
+            // 设置按钮状态
+            this.passwordBtn.disabled = true;
+            this.passwordBtn.text = '修改中...';
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.CHANGE_PASSWORD),
+              data: {
+                old_password: this.passwordForm.old_password,
+                new_password: this.passwordForm.new_password
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg('密码修改成功', 1);
+                  // 清空表单
+                  this.passwordForm = {
+                    old_password: '',
+                    new_password: '',
+                    confirm_password: ''
+                  };
+                  // 如果返回了新token，更新token
+                  if (res.data && res.data.token) {
+                    // token会自动通过Set-Cookie设置，前端无需处理
+                  }
+                } else {
+                  tools.showMsg(res.message || '密码修改失败', 0);
+                }
+                this.passwordBtn.disabled = false;
+                this.passwordBtn.text = '修改密码';
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '密码修改失败', 0);
+                this.passwordBtn.disabled = false;
+                this.passwordBtn.text = '修改密码';
+              }
+            });
+          },
+          
+          // 发送验证码
+          onSendCode() {
+            // 根据是否已绑定手机号，使用不同的手机号
+            var mobile = '';
+            if (this.userInfo.mobile) {
+              // 解绑场景：使用当前绑定的手机号
+              mobile = this.userInfo.mobile;
+            } else {
+              // 绑定场景：使用输入框中的手机号
+              mobile = this.mobileForm.mobile ? this.mobileForm.mobile.trim() : '';
+              if (!mobile) {
+                tools.showMsg('请输入手机号', 0);
+                return;
+              }
+              // 手机号格式校验（绑定场景需要校验）
+              var mobileResult = app.validateMobile(mobile);
+              if (!mobileResult.valid) {
+                tools.showMsg(mobileResult.message, 0);
+                return;
+              }
+            }
+
+            // 设置按钮状态
+            this.codeBtn.disabled = true;
+            this.codeBtn.text = '发送中...';
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.SEND_CODE),
+              data: {
+                login_type: API_CONFIG.LOGIN_TYPE.MOBILE,
+                login_value: mobile
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg('验证码发送成功', 1);
+                  // 开始倒计时
+                  this.startCountdown();
+                } else {
+                  tools.showMsg(res.message || '验证码发送失败', 0);
+                  this.codeBtn.disabled = false;
+                  this.codeBtn.text = '发送验证码';
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '验证码发送失败', 0);
+                this.codeBtn.disabled = false;
+                this.codeBtn.text = '发送验证码';
+              }
+            });
+          },
+          // 倒计时
+          startCountdown() {
+            this.codeBtn.countdown = 60;
+            var timer = setInterval(() => {
+              this.codeBtn.countdown--;
+              this.codeBtn.text = this.codeBtn.countdown + '秒后重试';
+              if (this.codeBtn.countdown <= 0) {
+                clearInterval(timer);
+                this.codeBtn.disabled = false;
+                this.codeBtn.text = '发送验证码';
+              }
+            }, 1000);
+          },
+          // 绑定手机号
+          onBindMobile() {
+            // 表单校验 - 手机号
+            var mobile = this.mobileForm.mobile ? this.mobileForm.mobile.trim() : '';
+            if (!mobile) {
+              tools.showMsg('请输入手机号', 0);
+              return;
+            }
+            var mobileResult = app.validateMobile(mobile);
+            if (!mobileResult.valid) {
+              tools.showMsg(mobileResult.message, 0);
+              return;
+            }
+
+            // 表单校验 - 验证码
+            if (!this.mobileForm.code || this.mobileForm.code.trim() === '') {
+              tools.showMsg('请输入验证码', 0);
+              return;
+            }
+
+            // 设置按钮状态
+            this.mobileBtn.disabled = true;
+            this.mobileBtn.text = '绑定中...';
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.BIND_MOBILE),
+              data: {
+                mobile: this.mobileForm.mobile.trim(),
+                code: this.mobileForm.code.trim()
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg('手机号绑定成功', 1);
+                  // 重新加载用户信息
+                  this.loadUserInfo();
+                } else {
+                  tools.showMsg(res.message || '手机号绑定失败', 0);
+                }
+                this.mobileBtn.disabled = false;
+                this.mobileBtn.text = '绑定手机号';
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '手机号绑定失败', 0);
+                this.mobileBtn.disabled = false;
+                this.mobileBtn.text = '绑定手机号';
+              }
+            });
+          },
+          // 解绑手机号
+          onUnbindMobile() {
+            // 表单校验
+            if (!this.mobileForm.code || this.mobileForm.code.trim() === '') {
+              tools.showMsg('请输入验证码', 0);
+              return;
+            }
+            if (!this.userInfo.mobile) {
+              tools.showMsg('当前未绑定手机号', 0);
+              return;
+            }
+
+            if (!confirm('确定要解绑手机号吗？')) {
+              return;
+            }
+
+            // 设置按钮状态
+            this.mobileBtn.disabled = true;
+            this.mobileBtn.text = '解绑中...';
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.UNBIND_MOBILE),
+              data: {
+                mobile: this.userInfo.mobile,
+                code: this.mobileForm.code.trim()
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg('手机号解绑成功', 1);
+                  // 重新加载用户信息
+                  this.loadUserInfo();
+                } else {
+                  tools.showMsg(res.message || '手机号解绑失败', 0);
+                }
+                this.mobileBtn.disabled = false;
+                this.mobileBtn.text = '解绑手机号';
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '手机号解绑失败', 0);
+                this.mobileBtn.disabled = false;
+                this.mobileBtn.text = '解绑手机号';
+              }
+            });
+          }
+        }
+      });
+    </script>
+
+    <style>
+      .form-section-divider {
+        width: 100%;
+        margin: 20px 0 10px 0;
+        padding: 0;
+      }
+      
+      .form-section-divider .divider-text {
+        position: relative;
+        display: inline-block;
+        padding-left: 12px;
+        margin-bottom: 10px;
+        color: #409eff;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      
+      .form-section-divider .divider-text::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 14px;
+        background-color: #409eff;
+        border-radius: 2px;
+      }
+
+      .btn-group {
+        margin-top: 10px;
+      }
+    </style>
+  </body>
+</html>
+

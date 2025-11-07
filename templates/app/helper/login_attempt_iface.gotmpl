@@ -1,0 +1,16 @@
+package helper
+
+// LoginAttemptLimiter 提供最小限的登录尝试控制接口
+// 建议在 Redis 版实现中引入维度扩展（如 IP+login_type+account）与冷却时间，实现更精细的风控。
+type LoginAttemptLimiter interface {
+	// 记录失败尝试
+	RecordFailedAttempt(ip string)
+	// 记录成功尝试
+	RecordSuccessfulAttempt(ip string)
+	// 是否被封禁
+	IsBlocked(ip string) bool
+	// 获取当前失败尝试计数（按实现的维度，当前为 IP 维度）
+	GetAttemptCount(ip string) int
+	// 清理实现内部使用的临时键（可用于迁移或手工治理）
+	Cleanup()
+}

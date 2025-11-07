@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">新增用户</div>
+
+      <!-- 用户名、手机号 -->
+      <div class="form-section-divider">
+        <span class="divider-text">必填选项</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>用户名：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.username"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>手机号：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.mobile"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+      </div>
+
+      <div class="my-form ui-grid">
+         <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>密码：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.password"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+      </div>
+
+      <!-- 真实姓名、昵称、头像、邮箱  分割线 -->
+      <div class="form-section-divider">
+        <span class="divider-text">非必填选项，请按需填写</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>真实姓名：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.realname"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>昵称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.nickname"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>头像：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.avatar"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>邮箱：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.email"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>性别：</label>
+          <ui-select
+            class="form-control"
+            placeholder="请选择"
+            v-model="form.gender"
+            :disabled="false"
+            :options="select.gender"
+          ></ui-select>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>生日：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.birthday"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+      </div>
+
+      <!-- 角色选择 -->
+      <div class="form-section-divider">
+        <span class="divider-text">用户角色</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label" align="top">角色列表：</label>
+          <div class="form-control" style="padding: 10px; min-height: 40px;">
+            <div v-if="roles && roles.length > 0" style="display: flex; flex-wrap: wrap; gap: 15px;">
+              <ui-checkbox 
+                v-for="(role, index) in roles" 
+                :key="role.role_id"
+                v-model="form.role_ids[index]"
+                :true-value="role.role_id"
+                :disabled="false"
+              >{{role.role_name}}</ui-checkbox>
+            </div>
+            <div v-else style="padding: 20px; text-align: center; color: rgba(0,0,0,.45); font-size: 14px;">
+              <span>加载角色数据中...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 提交 或 返回 -->
+      <div class="my-form ui-grid">
+        <div class="btn-group">
+          <ui-button
+            v-if="app.hasButtonPermission('system.account.user.add')"
+            color="primary"
+            @click="onSubmit"
+            :disabled="submitBtn.disabled"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">取消</ui-button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.USER_LIST)
+          },
+          form: {
+            username: '', // 用户名
+            password: '123456', // 密码
+            realname: '', // 真实姓名
+            nickname: '', // 昵称
+            avatar: '', // 头像
+            mobile: '', // 手机号
+            email: '', // 邮箱
+            gender: 0, // 性别
+            birthday: '', // 生日
+            user_source: 3, // 用户来源：1自主注册，2第三方登录, 3. 管理员创建
+            role_ids: [], // 选中的角色ID数组
+          },
+          roles: [], // 角色列表数据
+          select: {
+            gender: [
+              {
+                value: 0,
+                label: '未知'
+              },
+              {
+                value: 1,
+                label: '男'
+              },
+              {
+                value: 2,
+                label: '女'
+              }
+            ]
+          },
+          // 提交按钮
+          submitBtn: {
+            disabled: false,
+            text: '提交'
+          }
+        },
+        created() {
+          // 加载角色列表
+          this.loadRoles();
+        },
+        methods: {
+          // 加载角色列表
+          loadRoles() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.LIST),
+              data: {
+                page_no: 1,
+                page_size: 1000, // 获取所有角色，设置一个较大的值
+                role_name: '',
+                status: 1 // 只获取启用的角色
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  this.roles = res.data.list || [];
+                } else {
+                  tools.showMsg(res.message || '获取角色列表失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取角色列表失败', 0);
+              }
+            });
+          },
+          onSubmit() {
+            // console.log("form: ", this.form);
+            // 先进行表单校验
+            if (!this.checkForm()) {
+              return;
+            }
+
+            // ajax提交
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.ADD_USER),
+              data: this.form,
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg(res.message, 1);
+                  tools.setSubmitBtn(2);
+                  tools.showSuccess(this.url.index);
+                } else {
+                  tools.setSubmitBtn(1);
+                  tools.showMsg(res.message, 0);
+                }
+              },
+              error: (err) => {
+                tools.setSubmitBtn(1);
+                tools.showMsg(err.message, 0);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          },
+
+          // checkForm 表单校验
+          checkForm() {
+            // 1. 校验用户名
+            const usernameResult = app.validateUsername(this.form.username);
+            if (!usernameResult.valid) {
+              tools.showMsg(usernameResult.message, 0);
+              return false;
+            }
+
+            // 2. 校验密码
+            const passwordResult = app.validatePassword(this.form.password);
+            if (!passwordResult.valid) {
+              tools.showMsg(passwordResult.message, 0);
+              return false;
+            }
+
+            // 3. 校验手机号
+            const mobileResult = app.validateMobile(this.form.mobile);
+            if (!mobileResult.valid) {
+              tools.showMsg(mobileResult.message, 0);
+              return false;
+            }
+
+            return true;
+          }
+        }
+      });
+    </script>
+
+    <style>
+      .form-section-divider {
+        width: 100%;
+        margin: 10px 0;
+        padding: 0;
+      }
+      
+      .form-section-divider .divider-text {
+        position: relative;
+        display: inline-block;
+        padding-left: 12px;
+        margin-bottom: 10px;
+        color: #409eff;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      
+      .form-section-divider .divider-text::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 14px;
+        background-color: #409eff;
+        border-radius: 2px;
+      }
+    </style>
+  </body>
+</html>

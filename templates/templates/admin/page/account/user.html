@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+
+     <!-- 如果需要使用表格，则需要引入该文件 -->
+     <script
+     type="text/javascript"
+     src="/static/js/components/my-simple-table.js"
+   ></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="base-box">
+        <div class="box-title">用户管理</div>
+        <!-- S 筛选栏 -->
+        <section class="my-search">
+          <div class="ui-grid">
+            <div class="ui-grid-cell col-4">
+              <ui-textbox
+                placeholder="用户名/手机号/邮箱"
+                v-model="form.username_mobile_email"
+                clearable
+              ></ui-textbox>
+            </div>
+            <div class="ui-grid-cell col-4">
+              <ui-select
+                placeholder="状态"
+                v-model="form.status"
+                :options="select.status"
+                clearable
+              ></ui-select>
+            </div>
+
+            <div class="ui-grid-cell col-4">
+              <ui-button 
+              v-if="app.hasButtonPermission('system.account.user.query')"
+              color="primary" icon="search" @click="searchData"
+                >查询</ui-button
+              >
+            </div>
+          </div>
+        </section>
+        <!-- E 筛选栏 -->
+
+        <!-- S 内容 -->
+        <div class="box-body">
+          <!-- S 操作栏 -->
+          <section class="my-option">
+            <div class="ui-grid">
+              <div
+                class="ui-grid-cell ui-grid-full ui-grid-middle ui-text-left"
+              >
+                <ui-button 
+                  v-if="app.hasButtonPermission('system.account.user.add')"
+                  color="primary" 
+                  icon="add" 
+                  @click="addTableData"
+                  >新增用户</ui-button
+                >
+                <ui-button 
+                  v-if="app.hasButtonPermission('system.account.user.refresh')"
+                  color="primary" 
+                  icon="refresh" 
+                  @click="loadTableData"
+                  >刷新列表</ui-button
+                >
+              </div>
+            </div>
+          </section>
+          <!-- E 操作栏 -->
+
+          <!-- 表格 -->
+          <section class="my-table">
+            <my-simple-table
+              :columns="columns"
+              :data="table.data"
+              :loading="table.loading"
+              @switch="switchTableData"
+              @jump="jumpUrl"
+            >
+              <template slot="options" scope="scope">
+                <ui-button
+                  v-if="app.hasButtonPermission('system.account.user.edit')"
+                  type="text"
+                  color="primary"
+                  @click="editTableData(scope.data)"
+                  >编辑</ui-button
+                >
+                <ui-button
+                  v-if="app.hasButtonPermission('system.account.user.delete')"
+                  type="text"
+                  color="primary"
+                  @click="delTableData(scope.data)"
+                  >删除</ui-button
+                >
+              </template>
+            </my-simple-table>
+          </section>
+
+          <!--
+             S 分页控件
+              form.page_no：当前页数
+              form.page_size: 每页条数，默认10条
+              form.result_total：总记录条数
+            -->
+          <section class="my-pagination">
+            <ui-pagination
+              :page-size="form.page_size"
+              :total="form.result_total"
+              :current="form.page_no"
+              @change="pageNumChange"
+            ></ui-pagination>
+            <span
+              >总{{Math.ceil(form.result_total/form.page_size)}}页/{{form.result_total}}条记录
+              每页显示</span
+            >
+            <ui-select
+              v-model="form.page_size"
+              :options="table.pageSizes"
+              @change="pageSizeChange"
+            ></ui-select>
+          </section>
+          <!-- E 分页 -->
+        </div>
+        <!-- E 内容 -->
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        // 数据
+        data: {
+          // 表单数据
+          form: {
+            username_mobile_email: '',
+            status: -1, // -1: 全部, 0: 禁用, 1: 启用
+
+            // 分页数据
+            page_no: 1, // 当前页数
+            page_size: '15', // 每页条数
+            result_total: 0, // 总页数
+
+            // 排序数据
+            sortColumn: 'user_id', //排序字段
+            sortDirection: 'desc' //排序的方式
+          },
+          // 筛选下拉框的数据
+          select: {
+            status: [
+              {
+                value: '1',
+                label: '启用'
+              },
+              {
+                value: '0',
+                label: '禁用'
+              }
+            ]
+          },
+
+          // 表头
+          columns: [
+            {
+              title: '用户ID',
+              name: 'user_id',
+              align: 'left',
+              width: 100,
+              visible: true
+            },
+            {
+              title: '真实用户名',
+              name: 'realname',
+              align: 'center',
+              visible: true,
+            },
+            {
+              title: '账号',
+              name: 'username',
+              align: 'left',
+              visible: true
+            },
+            {
+              title: '手机号',
+              name: 'mobile',
+              align: 'left',
+              visible: true
+            },
+            {
+              title: '邮箱',
+              name: 'email',
+              align: 'left',
+              visible: true
+            },
+            {
+              title: '状态',
+              name: 'status',
+              align: 'center',
+              type: 'switch',
+              visible: true,
+              width: 100
+            },
+            {
+              title: '添加时间',
+              name: 'created_at',
+              align: 'left',
+              visible: false,
+              width: 150
+            },
+            {
+              title: '最后更新时间',
+              name: 'updated_at',
+              align: 'left',
+              visible: true,
+              width: 150
+            },
+            {
+              title: '操作',
+              slot: 'options',
+              align: 'left',
+              width: 100,
+              visible: true
+            }
+          ],
+          
+          // 表格数据
+          table: {
+            loading: false, // 加载状态
+            data: [], // 表格数据
+            pageSizes: ['15', '30', '50', '100'] // 分页配置
+          },
+          // methods使用的URL，用于跳转页面
+          url: {
+            add:  API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.ADD),  // 新增用户页面
+            edit: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.EDIT), // 编辑用户页面
+          }
+        },
+        // 生命周期函数：DOM节点还没生成
+        created() {
+          // 场景： 发起初始化请求，进行和DOM无关的初始化操作
+          this.searchData();
+          this.loadTableData();
+        },
+        // 生命周期函数：DOM节点生成，并挂载到页面中
+        mounted() {
+          // 场景： 初始化第三方库，发起需要DOM的操作
+        },
+        // 响应式数据监听
+        watch: {},
+        // 计算属性
+        computed: {
+          // 场景：格式化数据、组合数据、条件判断、过滤/排序等
+        },
+        // 所有的函数在这里定义
+        methods: {
+          // 条件筛选-查询按钮
+          searchData() {
+            this.form.page_no = 1;
+            this.loadTableData();
+          },
+          // 新增用户 - 按钮
+          addTableData() {
+            tools.jumpUrl(this.url.add);
+          },
+          // 刷新列表 - 按钮
+          loadTableData() {
+            this.table.loading = true;
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.LIST),
+              data: this.form,
+              success: (res) => {
+                console.log('users: ', res.data.users);
+                this.table.data = res.data.users;
+                this.form.result_total = res.data.result_total;
+                this.form.page_size = res.data.page_size;
+                this.form.page_no = res.data.page_no;
+                this.table.loading = false;
+              },
+              error: (error) => {
+                this.table.loading = false;
+                tools.showMsg(error.message || '获取用户列表失败', 0);
+              }
+            });
+          },
+          // 修改开关状态, value: 1 启用, 0 禁用, data: 行数据, column: 列数据
+          switchTableData(value, data, column) {
+            // 调用更新用户状态接口
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.UPDATE_STATUS),
+              data: {
+                user_id: data.user_id,
+                status: value
+              },
+              success: (res) => {
+                if (res.code == 0) {
+                  if (value == 1) {
+                    tools.showMsg('用户已启用', 1);
+                  } else {
+                    tools.showMsg('用户已禁用', 0);
+                  }
+                  // 刷新列表（可选，因为开关已经改变了）
+                  this.loadTableData();
+                } else {
+                  // 如果更新失败，恢复开关状态
+                  data.status = value === 1 ? 0 : 1;
+                  tools.showMsg(res.message || '状态更新失败', 0);
+                }
+              },
+              error: (error) => {
+                // 如果更新失败，恢复开关状态
+                data.status = value === 1 ? 0 : 1;
+                tools.showMsg(error.message || '状态更新失败', 0);
+              }
+            });
+          },
+          // 跳转页面
+          jumpUrl(url) {
+            tools.jumpUrl(url, 0);
+          },
+          // 编辑表数据
+          editTableData(data) {
+            // alert(this.url.edit);
+            tools.jumpUrl(this.url.edit, 'user_id=' + data.user_id);
+          },
+          // 删除数据
+          delTableData(data) {
+            // 这里通过点击删除，删除该行数据
+            NUI.$confirm('用户删除只会将用户状态设置为-1,确定删除该条数据？', '提示')
+              .then(() => {
+                app.postJson({
+                  url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.DELETE),
+                  data: {user_id: data.user_id},
+                  success: (res) => {
+                    if (res && res.code == 0) {
+                      tools.showMsg('删除成功', 1);
+                      // 刷新列表（可选，因为开关已经改变了）
+                      this.loadTableData();
+                    } else {
+                      tools.showMsg(res.message || '删除失败', 0);
+                    }
+                  },
+                  error: (error) => {
+                    tools.showMsg(error.message || '删除失败', 0);
+                  }
+                });
+              })
+              .catch(function () {
+                console.log('点击确认框[取消]');
+              });
+          },
+          //分页大小
+          pageSizeChange(val) {
+            this.form.page_size = val;
+            this.loadTableData();
+          },
+          //第N页
+          pageNumChange(val) {
+            this.form.page_no = val;
+            this.loadTableData();
+          },
+        }
+      });
+    </script>
+    <style></style>
+  </body>
+</html>

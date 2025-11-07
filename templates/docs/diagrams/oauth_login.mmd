@@ -1,0 +1,27 @@
+flowchart TD
+  A[开始] --> B[客户端获取授权码code]
+  B --> C[后端换token并拉取 unionid/openid + mobile?]
+  C --> D{校验code一次性/有效期/nonce/state}
+  D -->|失败| F1[失败: 无效授权]
+  D -->|通过| T[开启事务]
+  T --> E{查 user_login(type=oauth:provider, value=unionid或openid)}
+  E -->|老用户| S{状态校验}
+  S -->|非法| F2[失败: 状态非法]
+  S -->|合法| M{第三方是否返回手机号?}
+  M -->|否| CMT[提交事务] --> Z[登录成功]
+  M -->|是| CMP{与当前用户手机号是否一致?}
+  CMP -->|一致| CMT2[提交事务] --> Z
+  CMP -->|不一致| OCC{该手机号是否被他人占用?}
+  OCC -->|占用| AUD[仅审计冲突, 不更新] --> CMT3[提交事务] --> Z
+  OCC -->|未占用| UPD[同事务静默更新 admin_user.mobile + 修正 sms 登录值并审计]
+  UPD --> CMT4[提交事务] --> Z
+  E -->|新用户| NM{第三方是否返回手机号?}
+  NM -->|否| CR1[创建 admin_user + user_login(oauth) 并审计] --> CMT5[提交事务] --> Z
+  NM -->|是| OCC2{该手机号是否已被占用?}
+  OCC2 -->|未占用| CR2[创建新用户: admin_user + oauth + sms 并审计] --> CMT6[提交事务] --> Z
+  OCC2 -->|已占用| BIND[绑定 oauth 到该用户; 如缺 sms 则补齐; 审计] --> CMT7[提交事务] --> Z
+  E --> FIX[发现缺失对应 login?]
+  FIX -->|是| FIXDO[同事务补齐并审计] --> S
+  FIX -->|否| S
+
+

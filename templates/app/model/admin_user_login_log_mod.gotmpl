@@ -1,0 +1,211 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminUserLoginLog 用户登录日志表
+type AdminUserLoginLog struct {
+	LogID         uint64    `json:"log_id" gorm:"primaryKey;autoIncrement;column:log_id;comment:日志ID"`                                        // 日志ID
+	UserID        uint64    `json:"user_id" gorm:"index:idx_user_id;not null;column:user_id;comment:用户ID"`                                    // 用户ID
+	LoginType     string    `json:"login_type" gorm:"index:idx_login_type;size:20;not null;column:login_type;comment:登录方式"`                   // 登录方式
+	LoginIP       string    `json:"login_ip" gorm:"size:45;not null;default:'';column:login_ip;comment:登录IP"`                                 // 登录IP
+	UserAgent     string    `json:"user_agent" gorm:"size:500;not null;default:'';column:user_agent;comment:用户代理"`                            // 用户代理
+	LoginStatus   int8      `json:"login_status" gorm:"index:idx_login_status;not null;default:1;column:login_status;comment:登录状态：1成功，0失败"`   // 登录状态：1成功，0失败
+	FailureReason string    `json:"failure_reason" gorm:"size:255;not null;default:'';column:failure_reason;comment:失败原因"`                    // 失败原因
+	LoginTime     time.Time `json:"login_time" gorm:"index:idx_login_time;not null;default:CURRENT_TIMESTAMP;column:login_time;comment:登录时间"` // 登录时间
+}
+
+// TableName 指定表名
+func (AdminUserLoginLog) TableName() string {
+	return "admin_user_login_logs"
+}
+
+func (AdminUserLoginLog) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminUserLoginLogRepository struct {
+	dao.Repository[AdminUserLoginLog]
+}
+
+func NewAdminUserLoginLogRepository() *AdminUserLoginLogRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminUserLoginLog]()
+	if err != nil {
+		panic("创建AdminUserLoginLogRepository失败: " + err.Error())
+	}
+	return &AdminUserLoginLogRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminUserLoginLogRepositoryWithDB(db *gorm.DB) *AdminUserLoginLogRepository {
+	base := dao.NewBaseRepository[AdminUserLoginLog](db)
+	return &AdminUserLoginLogRepository{
+		Repository: base,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminUserLoginLogRepository) GetDB() *gorm.DB {
+	return (&AdminUserLoginLog{}).DB()
+}
+
+// CreateLog 创建登录日志
+func (r *AdminUserLoginLogRepository) CreateLog(ctx context.Context, userID uint64, loginType, ip, ua string, success bool, reason string) error {
+	status := int8(1)
+	if !success {
+		status = 0
+	}
+	entry := &AdminUserLoginLog{
+		UserID:        userID,
+		LoginType:     loginType,
+		LoginIP:       ip,
+		UserAgent:     ua,
+		LoginStatus:   status,
+		FailureReason: reason,
+		LoginTime:     time.Now(),
+	}
+	return r.Create(ctx, entry)
+}
+
+// FindByLogID 根据日志ID查找日志
+func (r *AdminUserLoginLogRepository) FindByLogID(ctx context.Context, logID uint64) (*AdminUserLoginLog, error) {
+	return r.FindOneByCondition(ctx, "log_id = ?", logID)
+}
+
+// FindByUserID 根据用户ID查找日志列表
+func (r *AdminUserLoginLogRepository) FindByUserID(ctx context.Context, userID uint64) ([]AdminUserLoginLog, error) {
+	return r.FindByCondition(ctx, "user_id = ?", userID)
+}
+
+// FindByUserIDAndStatus 根据用户ID和登录状态查找日志
+func (r *AdminUserLoginLogRepository) FindByUserIDAndStatus(ctx context.Context, userID uint64, status int8) ([]AdminUserLoginLog, error) {
+	return r.FindByCondition(ctx, "user_id = ? AND login_status = ?", userID, status)
+}
+
+// FindByUserIDOrderByTime 根据用户ID查找日志，按时间倒序
+func (r *AdminUserLoginLogRepository) FindByUserIDOrderByTime(ctx context.Context, userID uint64, limit int) ([]AdminUserLoginLog, error) {
+	var logs []AdminUserLoginLog
+	db := r.GetDB().WithContext(ctx)
+	err := db.Where("user_id = ?", userID).
+		Order("login_time DESC").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}
+
+// FindByTimeRange 根据时间范围查找日志
+func (r *AdminUserLoginLogRepository) FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]AdminUserLoginLog, error) {
+	return r.FindByCondition(ctx, "login_time >= ? AND login_time <= ?", startTime, endTime)
+}
+
+// FindByUserIDAndTimeRange 根据用户ID和时间范围查找日志
+func (r *AdminUserLoginLogRepository) FindByUserIDAndTimeRange(ctx context.Context, userID uint64, startTime, endTime time.Time) ([]AdminUserLoginLog, error) {
+	return r.FindByCondition(ctx, "user_id = ? AND login_time >= ? AND login_time <= ?", userID, startTime, endTime)
+}
+
+// FindRecentLogs 查找最近的登录日志
+func (r *AdminUserLoginLogRepository) FindRecentLogs(ctx context.Context, limit int) ([]AdminUserLoginLog, error) {
+	var logs []AdminUserLoginLog
+	db := r.GetDB().WithContext(ctx)
+	err := db.Order("login_time DESC").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}
+
+// FindRecentLogsByUserID 查找用户最近的登录日志
+func (r *AdminUserLoginLogRepository) FindRecentLogsByUserID(ctx context.Context, userID uint64, limit int) ([]AdminUserLoginLog, error) {
+	return r.FindByUserIDOrderByTime(ctx, userID, limit)
+}
+
+// CountByUserID 统计用户的登录日志数量
+func (r *AdminUserLoginLogRepository) CountByUserID(ctx context.Context, userID uint64) (int64, error) {
+	return r.CountByCondition(ctx, "user_id = ?", userID)
+}
+
+// CountByUserIDAndStatus 统计用户指定状态的登录日志数量
+func (r *AdminUserLoginLogRepository) CountByUserIDAndStatus(ctx context.Context, userID uint64, status int8) (int64, error) {
+	return r.CountByCondition(ctx, "user_id = ? AND login_status = ?", userID, status)
+}
+
+// FindFailedLogsByUserID 查找用户的失败登录日志
+func (r *AdminUserLoginLogRepository) FindFailedLogsByUserID(ctx context.Context, userID uint64, limit int) ([]AdminUserLoginLog, error) {
+	var logs []AdminUserLoginLog
+	db := r.GetDB().WithContext(ctx)
+	err := db.Where("user_id = ? AND login_status = 0", userID).
+		Order("login_time DESC").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}
+
+// FindWithConditions 根据组合条件智能查询日志（支持分页）
+// userID: 用户ID（0表示不过滤）
+// loginType: 登录方式（空字符串表示不过滤）
+// loginStatus: 登录状态（-1表示不过滤，0失败，1成功）
+// startTime: 开始时间（nil表示不过滤）
+// endTime: 结束时间（nil表示不过滤）
+// loginIP: 登录IP（空字符串表示不过滤）
+// page: 页码（从1开始，0或不传表示不分页）
+// pageSize: 每页数量（0或不传表示不分页）
+func (r *AdminUserLoginLogRepository) FindWithConditions(ctx context.Context, userID uint64, loginType string, loginStatus int8, startTime, endTime *time.Time, loginIP string, page, pageSize int) ([]AdminUserLoginLog, int64, error) {
+	var logs []AdminUserLoginLog
+	db := r.GetDB().WithContext(ctx).Model(&AdminUserLoginLog{})
+
+	// 构建动态查询条件
+	if userID > 0 {
+		db = db.Where("user_id = ?", userID)
+	}
+	if loginType != "" {
+		db = db.Where("login_type = ?", loginType)
+	}
+	if loginStatus >= 0 {
+		db = db.Where("login_status = ?", loginStatus)
+	}
+	if startTime != nil {
+		db = db.Where("login_time >= ?", *startTime)
+	}
+	if endTime != nil {
+		db = db.Where("login_time <= ?", *endTime)
+	}
+	if loginIP != "" {
+		db = db.Where("login_ip LIKE ?", "%"+loginIP+"%")
+	}
+
+	// 获取总数（在分页之前）
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 排序（按登录时间倒序）
+	db = db.Order("login_time DESC")
+
+	// 分页处理
+	if page > 0 && pageSize > 0 {
+		offset := (page - 1) * pageSize
+		db = db.Offset(offset).Limit(pageSize)
+	}
+
+	// 执行查询
+	err := db.Find(&logs).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return logs, total, nil
+}

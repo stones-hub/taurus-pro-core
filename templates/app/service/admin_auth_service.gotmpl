@@ -1,0 +1,1125 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+	"time"
+
+	"{{.ProjectName}}/app/helper"
+	"{{.ProjectName}}/app/helper/store"
+	"{{.ProjectName}}/app/model"
+	"{{.ProjectName}}/app/model/dto"
+	oauth "{{.ProjectName}}/app/service/oauth"
+
+	"github.com/google/wire"
+	"gorm.io/gorm"
+)
+
+// AdminAuthService 聚合用户认证与账号变更相关的领域服务
+// 职责：账密登录、短信登录、第三方授权登录，以及设置/修改密码、绑定/解绑手机号等操作；并负责基础审计与风控。
+type AdminAuthService struct {
+	UserRepo                *model.AdminUserRepository
+	LoginRepo               *model.AdminUserLoginRepository
+	TxnRepo                 *model.TxnAnchorRepository
+	LoginLogRepo            *model.AdminUserLoginLogRepository
+	Attempts                helper.LoginAttemptLimiter
+	VerificationCodeManager *helper.VerificationCodeManager
+	AuthRedisStore          *store.AuthRedisStore
+}
+
+// AdminAuthServiceSet wire provider set
+var AdminAuthServiceSet = wire.NewSet(
+	wire.Struct(new(AdminAuthService), "*"),
+	model.NewAdminUserRepository,
+	model.NewAdminUserLoginRepository,
+	model.NewTxnAnchorRepository,
+	model.NewAdminUserLoginLogRepository,
+	helper.NewLoginAttemptManagerRedis,
+	wire.Bind(new(helper.LoginAttemptLimiter), new(*helper.LoginAttemptManagerRedis)),
+	helper.NewVerificationCodeManager,
+	store.NewAuthRedisStore,
+)
+
+// PasswordLogin 账密登录（仅登录，不注册）
+// 仅支持 username 作为登录标识；必须存在 username 登录方式且状态可用；校验通过后签发 JWT 并审计。
+func (s *AdminAuthService) PasswordLogin(ctx context.Context, account string, password string, ip string, ua string) (*dto.LoginResponse, error) {
+	if s.Attempts != nil && s.Attempts.IsBlocked(ip) {
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, string(helper.LoginTypeUsername), ip, ua, false, "尝试过多，已暂时锁定")
+		}
+		return failResp("尝试过多，请稍后再试"), nil
+	}
+
+	// 去除空格
+	account = helper.NormalizeString(account)
+	if account == "" || password == "" {
+		return failResp("参数不能为空"), nil
+	}
+	// 仅支持用户名
+	user, _ := s.UserRepo.FindOneByCondition(ctx, "username = ?", account)
+	if user == nil {
+		return failResp("账号不存在"), nil
+	}
+
+	// 必须存在 username 登录方式（表示账密）
+	// 兼容不同仓储实现：以结果是否为 nil 作为“未找到”的依据，避免 ErrRecordNotFound 匹配差异
+	login, _ := s.LoginRepo.FindByUserIDAndLoginTypeAnyStatus(ctx, user.UserID, string(helper.LoginTypeUsername))
+	if login == nil { // 证明没有密码登录方式，则提示用户设置密码
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeUsername), ip, ua, false, "未设置密码登录方式")
+		}
+		return failResp("请用其他方式登录后设置密码"), nil
+	}
+
+	if login.Status != helper.LoginMethodStatusEnabled || user.Status != helper.UserStatusEnabled { // 证明密码登录方式存在但被禁用，或账号状态非法，则提示用户
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeUsername), ip, ua, false, "账号状态非法")
+		}
+		return failResp("账号状态非法"), nil
+	}
+
+	// 校验密码
+	if !helper.VerifyPassword(password, login.LoginCredential, login.Salt) {
+		// 可加错误次数风控
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeUsername), ip, ua, false, "密码错误")
+		}
+		return failResp("用户名或密码错误"), nil
+	}
+
+	_ = s.UserRepo.UpdateLastLogin(ctx, user.UserID, time.Now(), ip)
+	if s.Attempts != nil {
+		s.Attempts.RecordSuccessfulAttempt(ip)
+	}
+	if s.LoginLogRepo != nil {
+		_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeUsername), ip, ua, true, "")
+	}
+	// 签发 JWT
+	token, _ := helper.GenerateJWTToken(strconv.FormatUint(user.UserID, 10), user.Username)
+	return successResp(token, user), nil
+}
+
+// SmsLogin 短信验证码登录（登录即注册）
+// 事务内：老用户缺失 sms 则补齐；新用户创建 admin_user + sms。唯一冲突后重查幂等返回；全链路审计。
+func (s *AdminAuthService) SmsLogin(ctx context.Context, mobile string, code string, ip string, ua string) (*dto.LoginResponse, error) {
+	if s.Attempts != nil && s.Attempts.IsBlocked(ip) {
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, string(helper.LoginTypeMobile), ip, ua, false, "尝试过多，已暂时锁定")
+		}
+		return failResp("尝试过多，请稍后再试"), nil
+	}
+
+	// 归一化手机号
+	mobile = helper.NormalizeMobile(mobile)
+	if mobile == "" || code == "" {
+		return failResp("参数不能为空"), nil
+	}
+
+	// 验证码校验（一次性/TTL/限频）：占位，复用现有 helper 即可
+	if !helper.VerifySMS(s.VerificationCodeManager, mobile, code) {
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, string(helper.LoginTypeMobile), ip, ua, false, "验证码错误或过期")
+		}
+		return failResp("验证码错误或过期"), nil
+	}
+	// ----> 到这里已证明验证码校验通过 <----
+	// 标记“账号/登录方式状态不合法”的布尔变量，用于后续事务外统一失败处理与审计
+	var statusIllegal bool
+	var authedUser *model.AdminUser
+
+	err := s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+
+		// 主表中查找手机号是否存在
+		user, _ := ur.FindByMobile(ctx, mobile)
+
+		if user != nil { // 证明主表中存在当前手机号，则检查短信登录方式是否存在
+			// 数据守护：如缺 sms 登录方式则补齐
+			smsLogin, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, user.UserID, string(helper.LoginTypeMobile))
+			if smsLogin == nil { // 证明短信登录方式不存在，则创建短信登录方式
+				if err := lr.Create(ctx, &model.AdminUserLogin{
+					UserID:          user.UserID,
+					LoginType:       string(helper.LoginTypeMobile),
+					LoginValue:      mobile,
+					LoginCredential: "", // 短信登录不存验证码
+					Salt:            "",
+					Status:          1,
+				}); err != nil {
+					// 并发下可能被另一事务先创建，视为幂等成功
+					if !helper.IsUniqueConflictMySQL(err) {
+						return err
+					}
+				}
+			} else if smsLogin.Status != helper.LoginMethodStatusEnabled {
+				// 登录方式存在但被禁用，标记非法，交由外层统一失败处理与审计
+				// 注意：解绑时是删除登录方式，不是禁用，所以这个分支通常不会触发
+				// 如果登录方式被禁用，可能是管理员手动禁用，应该拒绝登录
+				statusIllegal = true
+				return nil
+			}
+
+			// 检查账号状态是否合法
+			if user.Status != helper.UserStatusEnabled {
+				statusIllegal = true
+				return nil
+			}
+			authedUser = user
+			return nil
+		}
+
+		// 证明主表中不存在当前手机号，则创建主表用户
+		user = &model.AdminUser{
+			Username: mobile,
+			Realname: "",
+			Nickname: "",
+			Avatar:   "",
+			Mobile:   &mobile,
+			Email:    nil,
+			Gender:   0,
+			Position: "",
+			Status:   1,
+			// IsAdmin:    0,
+			UserSource: helper.UserSourceSelfRegistered,
+		}
+		if err := ur.Create(ctx, user); err != nil {
+			if helper.IsUniqueConflictMySQL(err) {
+				// 并发插入导致：重查交给上层一次性完成
+				// 有可能并发插入同一个手机号码，则返回唯一键冲突错误
+				return err
+			}
+			return err
+		}
+		// 登录方式表中创建登录方式
+		if err := lr.Create(ctx, &model.AdminUserLogin{
+			UserID:          user.UserID,
+			LoginType:       string(helper.LoginTypeMobile),
+			LoginValue:      mobile,
+			LoginCredential: "",
+			Salt:            "",
+			Status:          1,
+		}); err != nil {
+			return err
+		}
+		authedUser = user
+		return nil
+	})
+
+	if err != nil {
+		// 仅当唯一键冲突时执行幂等重查；其他错误一律按失败返回(交给上层统一处理)
+		if helper.IsUniqueConflictMySQL(err) {
+			user, _ := s.UserRepo.FindByMobile(ctx, mobile)
+			if user == nil || user.Status != helper.UserStatusEnabled {
+				if s.Attempts != nil {
+					s.Attempts.RecordFailedAttempt(ip)
+				}
+				if s.LoginLogRepo != nil {
+					_ = s.LoginLogRepo.CreateLog(ctx, 0, string(helper.LoginTypeMobile), ip, ua, false, "系统繁忙")
+				}
+				return failResp("系统繁忙，请重试"), nil
+			}
+			// 额外校验登录方式状态（防止冲突路径绕过登录方式禁用）
+			smsLogin, _ := s.LoginRepo.FindByUserIDAndLoginTypeAnyStatus(ctx, user.UserID, string(helper.LoginTypeMobile))
+			if smsLogin == nil || smsLogin.Status != helper.LoginMethodStatusEnabled {
+				if s.Attempts != nil {
+					s.Attempts.RecordFailedAttempt(ip)
+				}
+				if s.LoginLogRepo != nil {
+					_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeMobile), ip, ua, false, "登录方式不可用")
+				}
+				return failResp("账号状态非法"), nil
+			}
+			if s.Attempts != nil {
+				s.Attempts.RecordSuccessfulAttempt(ip)
+			}
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeMobile), ip, ua, true, "")
+			}
+			token, _ := helper.GenerateJWTToken(strconv.FormatUint(user.UserID, 10), user.Username)
+			return successResp(token, user), nil
+		}
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, string(helper.LoginTypeMobile), ip, ua, false, err.Error())
+		}
+		return failResp("系统繁忙，请重试"), nil
+	}
+
+	if statusIllegal {
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, string(helper.LoginTypeMobile), ip, ua, false, "账号状态非法")
+		}
+		return failResp("账号状态非法"), nil
+	}
+	// 优先使用事务内确定的用户，避免事务外竞态反查
+	user := authedUser
+	if user == nil {
+		user, _ = s.UserRepo.FindByMobile(ctx, mobile)
+	}
+	if s.Attempts != nil {
+		s.Attempts.RecordSuccessfulAttempt(ip)
+	}
+	if s.LoginLogRepo != nil && user != nil {
+		_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, string(helper.LoginTypeMobile), ip, ua, true, "")
+	}
+	token, _ := helper.GenerateJWTToken(strconv.FormatUint(user.UserID, 10), user.Username)
+	return successResp(token, user), nil
+}
+
+// OauthLoginByCode 第三方授权登录（code 换取后登录即注册）
+// Provider 换码→命中老用户静默修复（手机号回填并启用/创建 sms）或新建用户（无手机号：username=provider:externalID）。
+func (s *AdminAuthService) OauthLoginByCode(ctx context.Context, provider string, code string, ip string, ua string) (*dto.LoginResponse, error) {
+	if s.Attempts != nil && s.Attempts.IsBlocked(ip) {
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, provider, ip, ua, false, "尝试过多，已暂时锁定")
+		}
+		return failResp("尝试过多，请稍后再试"), nil
+	}
+	// 归一化第三方登录方式
+	provider = helper.NormalizeProvider(provider)
+	// 归一化授权码
+	code = helper.NormalizeString(code)
+
+	if provider == "" || code == "" {
+		return failResp("参数不能为空"), nil
+	}
+
+	// 获取第三方登录方式
+	oauthProvider, ok := oauth.Get(provider)
+	if !ok {
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, provider, ip, ua, false, "不支持的第三方平台")
+		}
+		return failResp("不支持的第三方平台"), nil
+	}
+
+	// 根据第三方登录方式和授权码获取第三方用户信息
+	info, err := oauthProvider.ExchangeCode(ctx, code)
+	if err != nil || info == nil || info.PrimaryID() == "" {
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, provider, ip, ua, false, "授权失败")
+		}
+		return failResp("授权失败"), nil
+	}
+
+	// 获取第三方用户唯一标识
+	externalID := info.PrimaryID()
+	// 归一化第三方用户手机号(有可能为空)
+	mobile := helper.NormalizeMobile(info.Mobile)
+
+	var authedUser *model.AdminUser
+	err = s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+
+		// 以 (login_type, login_value) 幂等查
+		oauthLogin, _ := lr.FindByLoginTypeAndValueAnyStatus(ctx, provider, externalID)
+		if oauthLogin != nil { // 证明之前有绑定过第三方登录方式
+			// 登录方式状态必须可用
+			if oauthLogin.Status != helper.LoginMethodStatusEnabled {
+				return errors.New("登录方式被禁用")
+			}
+			user, _ := ur.FindByUserID(ctx, oauthLogin.UserID)
+			if user == nil || user.Status != helper.UserStatusEnabled {
+				return errors.New("账号状态非法或用户不存在")
+			}
+
+			// ----> 到这里已证明用户存在且账号状态合法 <----
+
+			// 若带回手机号, 则检查手机号是否一致
+			if mobile != "" {
+				if helper.NormalizeMobile(toString(user.Mobile)) != mobile {
+					// 如果不同，检查是否被他人占用，若未被占用，则静默更新用户 mobile
+					existByMobile, _ := ur.FindByMobile(ctx, mobile)
+
+					if existByMobile == nil { // 证明手机号未被占用，可安全回填
+						// 静默更新主表用户 mobile，并确保 sms 登录值一致
+						if err := ur.UpdateByCondition(ctx, map[string]interface{}{"mobile": mobile}, "user_id = ?", user.UserID); err != nil {
+							return err
+						}
+						// 确保 sms 登录值一致
+						smsLogin, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, user.UserID, string(helper.LoginTypeMobile))
+						if smsLogin != nil {
+							if err := lr.UpdateByCondition(ctx, map[string]interface{}{"login_value": mobile, "status": 1}, "login_id = ?", smsLogin.LoginID); err != nil {
+								return err
+							}
+						} else { // 证明 sms 登录方式不存在，则创建 sms 登录方式
+							if err := lr.Create(ctx, &model.AdminUserLogin{
+								UserID:          user.UserID,
+								LoginType:       string(helper.LoginTypeMobile),
+								LoginValue:      mobile,
+								LoginCredential: "",
+								Salt:            "",
+								Status:          1,
+							}); err != nil {
+								return err
+							}
+						}
+					} else { // 证明手机号已被占用（不论是否同一用户，均保持旧值以避免异常）
+						if s.LoginLogRepo != nil {
+							_ = s.LoginLogRepo.CreateLog(ctx, user.UserID, provider, ip, ua, true, "third-party mobile conflicted; keep old")
+						}
+					}
+				}
+			}
+			authedUser = user
+			return nil
+		}
+
+		// 证明没有这个第三方登录方式，则是新用户或要绑定老用户
+		if mobile == "" { // 第三方没有返回手机号码，我们只能当成新用户来处理(同时创建 oauth 登录方式和主表用户)
+			// 仅创建 oauth 登录方式 和 主表用户
+			user := &model.AdminUser{
+				Username: provider + ":" + externalID,
+				Mobile:   nil,
+				Realname: "",
+				Nickname: "",
+				Avatar:   "",
+				Email:    nil,
+				Gender:   0,
+				Position: "",
+				Status:   1,
+				// IsAdmin:    0,
+				UserSource: helper.UserSourceThirdParty,
+			}
+			if err := ur.Create(ctx, user); err != nil {
+				return err
+			}
+			if err := lr.Create(ctx, &model.AdminUserLogin{
+				UserID:          user.UserID,
+				LoginType:       provider,
+				LoginValue:      externalID,
+				LoginCredential: "",
+				Salt:            "",
+				Status:          1,
+			}); err != nil {
+				return err
+			}
+			authedUser = user
+			return nil
+		}
+
+		// ----> 到这里已证明第三方有返回手机号，则可能是要绑定老用户或新用户 <----
+		// 有手机号：判断占用
+		existUser, _ := ur.FindByMobile(ctx, mobile)
+		if existUser == nil { // 证明手机号未被占用，则全新用户
+			// 全新用户，创建 oauth + sms
+			user := &model.AdminUser{
+				Username: mobile,
+				Mobile:   &mobile,
+				Realname: "",
+				Nickname: "",
+				Avatar:   "",
+				Email:    nil,
+				Gender:   0,
+				Position: "",
+				Status:   1,
+				// IsAdmin:    0,
+				UserSource: helper.UserSourceThirdParty,
+			}
+			if err := ur.Create(ctx, user); err != nil {
+				return err
+			}
+			if err := lr.Create(ctx, &model.AdminUserLogin{
+				UserID:          user.UserID,
+				LoginType:       provider,
+				LoginValue:      externalID,
+				LoginCredential: "",
+				Salt:            "",
+				Status:          1,
+			}); err != nil {
+				return err
+			}
+			if err := lr.Create(ctx, &model.AdminUserLogin{
+				UserID:          user.UserID,
+				LoginType:       string(helper.LoginTypeMobile),
+				LoginValue:      mobile,
+				LoginCredential: "",
+				Salt:            "",
+				Status:          1,
+			}); err != nil {
+				return err
+			}
+			authedUser = user
+			return nil
+		}
+
+		// 证明手机号已被占用，则绑定老用户
+		if err := lr.Create(ctx, &model.AdminUserLogin{
+			UserID:          existUser.UserID,
+			LoginType:       provider,
+			LoginValue:      externalID,
+			LoginCredential: "",
+			Salt:            "",
+			Status:          1,
+		}); err != nil {
+			if helper.IsUniqueConflictMySQL(err) {
+				// 并发下已被他人（或本用户）创建：幂等重查
+				existLogin, _ := lr.FindByLoginTypeAndValueAnyStatus(ctx, provider, externalID)
+				if existLogin != nil && existLogin.UserID == existUser.UserID {
+					// 证明已绑定到同一用户，视为成功
+					return nil
+				}
+				// 已绑定到其他用户，拒绝绑定
+				return errors.New("第三方标识已绑定其他账户")
+			}
+			return err
+		}
+
+		smsLogin, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, existUser.UserID, string(helper.LoginTypeMobile))
+		if smsLogin == nil { // 证明 sms 登录方式不存在，则创建 sms 登录方式
+			if err := lr.Create(ctx, &model.AdminUserLogin{
+				UserID:          existUser.UserID,
+				LoginType:       string(helper.LoginTypeMobile),
+				LoginValue:      mobile,
+				LoginCredential: "",
+				Salt:            "",
+				Status:          1,
+			}); err != nil {
+				return err
+			}
+		}
+		authedUser = existUser
+		return nil
+	})
+
+	if err != nil {
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, provider, ip, ua, false, err.Error())
+		}
+		return failResp(err.Error()), nil
+	}
+
+	if authedUser == nil {
+		if s.Attempts != nil {
+			s.Attempts.RecordFailedAttempt(ip)
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, 0, provider, ip, ua, false, "登录失败")
+		}
+		return failResp("登录失败"), nil
+	}
+	if s.Attempts != nil {
+		s.Attempts.RecordSuccessfulAttempt(ip)
+	}
+	if s.LoginLogRepo != nil {
+		_ = s.LoginLogRepo.CreateLog(ctx, authedUser.UserID, provider, ip, ua, true, "")
+	}
+	token, _ := helper.GenerateJWTToken(strconv.FormatUint(authedUser.UserID, 10), authedUser.Username)
+	return successResp(token, authedUser), nil
+}
+
+// SetPassword 为用户设置或重置密码（覆盖式），返回新签发的 JWT token
+func (s *AdminAuthService) SetPassword(ctx context.Context, userID uint64, newPassword string) (string, error) {
+	if err := helper.ValidatePassword(newPassword); err != nil {
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "密码强度校验失败")
+		}
+		return "", err
+	}
+	salt := helper.GenerateSalt()
+	hashed := helper.HashPassword(newPassword, salt)
+
+	var user *model.AdminUser
+	err := s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+		user, _ = ur.FindByUserID(ctx, userID)
+		if user == nil || user.Status != 1 {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "用户不存在或状态非法")
+			}
+			return errors.New("用户不存在或状态非法")
+		}
+
+		login, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, userID, string(helper.LoginTypeUsername))
+		if login == nil {
+			// 新增 username 登录方式
+			if err := lr.Create(ctx, &model.AdminUserLogin{
+				UserID:          userID,
+				LoginType:       string(helper.LoginTypeUsername),
+				LoginValue:      user.Username,
+				LoginCredential: hashed,
+				Salt:            salt,
+				Status:          1,
+			}); err != nil {
+				if s.LoginLogRepo != nil {
+					_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "创建密码登录方式失败")
+				}
+				return err
+			}
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", true, "设置密码成功")
+			}
+			return nil
+		}
+
+		// 更新密码
+		if err := lr.UpdateByCondition(ctx, map[string]interface{}{
+			"login_credential": hashed,
+			"salt":             salt,
+			"status":           1,
+		}, "login_id = ?", login.LoginID); err != nil {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "更新密码失败")
+			}
+			return err
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", true, "设置密码成功")
+		}
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	// 事务成功后，先更新最近一次改密时间戳（必须在签发 token 之前）
+	if err := s.AuthRedisStore.InvalidateUserSessions(userID); err != nil {
+		return "", err
+	}
+
+	// 然后签发新的 JWT token（token.iat >= last_pw_change）
+	token, err := helper.GenerateJWTToken(strconv.FormatUint(user.UserID, 10), user.Username)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+// ChangePassword 修改密码（校验旧密码），返回新签发的 JWT token
+func (s *AdminAuthService) ChangePassword(ctx context.Context, userID uint64, oldPassword, newPassword string) (string, error) {
+	if err := helper.ValidatePassword(newPassword); err != nil {
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "新密码强度校验失败")
+		}
+		return "", err
+	}
+	var user *model.AdminUser
+	err := s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+		// 验证用户是否存在
+		user, _ = ur.FindByUserID(ctx, userID)
+		if user == nil || user.Status != helper.UserStatusEnabled {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "用户不存在或状态非法")
+			}
+			return errors.New("用户不存在或状态非法")
+		}
+
+		// 验证密码登录方式是否存在
+		login, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, userID, string(helper.LoginTypeUsername))
+		if login == nil {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "未设置密码登录方式")
+			}
+			return errors.New("未设置密码登录方式")
+		}
+
+		// 验证旧密码是否正确
+		if !helper.VerifyPassword(oldPassword, login.LoginCredential, login.Salt) {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "旧密码错误")
+			}
+			return errors.New("旧密码错误")
+		}
+
+		// 更新密码
+		salt := helper.GenerateSalt()
+		hashed := helper.HashPassword(newPassword, salt)
+		if err := lr.UpdateByCondition(ctx, map[string]interface{}{
+			"login_credential": hashed,
+			"salt":             salt,
+		}, "login_id = ?", login.LoginID); err != nil {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", false, "更新密码失败")
+			}
+			return err
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, userID, "password", "", "", true, "修改密码成功")
+		}
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	// 事务成功后，先更新最近一次改密时间戳（必须在签发 token 之前）
+	if err := s.AuthRedisStore.InvalidateUserSessions(userID); err != nil {
+		return "", err
+	}
+
+	// 然后签发新的 JWT token（token.iat >= last_pw_change）
+	token, err := helper.GenerateJWTToken(strconv.FormatUint(user.UserID, 10), user.Username)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+// UnbindMobile 解绑手机号（需要验证码验证，置空 admin_user.mobile，删除 sms 登录方式）
+func (s *AdminAuthService) UnbindMobile(ctx context.Context, userID uint64, mobile, code string) error {
+	// 1. 归一化手机号（controller 已校验格式，这里只做归一化）
+	mobile = helper.NormalizeMobile(mobile)
+	if mobile == "" {
+		return errors.New("手机号不能为空")
+	}
+
+	// 2. 验证验证码
+	if !helper.VerifySMS(s.VerificationCodeManager, mobile, code) {
+		return errors.New("验证码错误或过期")
+	}
+
+	// 3. 验证手机号是否属于当前用户
+	user, err := s.UserRepo.FindByUserID(ctx, userID)
+	if user == nil || err != nil {
+		return errors.New("用户不存在")
+	}
+	if user.Status != 1 {
+		return errors.New("用户状态非法")
+	}
+	if user.Mobile == nil || *user.Mobile != mobile {
+		return errors.New("手机号与当前绑定的手机号不匹配")
+	}
+
+	return s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+
+		// 4. 置空手机号
+		if err := ur.UpdateByCondition(ctx, map[string]interface{}{"mobile": nil}, "user_id = ?", userID); err != nil {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("解绑前：%s", mobile), false, "解绑失败：更新用户失败")
+			}
+			return err
+		}
+
+		// 5. 删除 sms 登录方式记录
+		// 直接删除登录方式记录，简化逻辑：
+		// - 重新绑定时会创建新的登录方式记录
+		// - 通过手机号登录时，如果找不到用户会创建新用户和登录方式
+		// - 通过第三方登录时，如果返回手机号会创建新的登录方式
+		login, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, userID, string(helper.LoginTypeMobile))
+		if login != nil {
+			if err := lr.Delete(ctx, login); err != nil {
+				if s.LoginLogRepo != nil {
+					_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("解绑前：%s", mobile), false, "解绑失败：删除登录方式失败")
+				}
+				return err
+			}
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("解绑前：%s", mobile), true, "解绑手机号成功")
+		}
+		return nil
+	})
+}
+
+// BindMobile 绑定手机号（校验验证码，确保未被他人占用；启用/创建 sms 登录方式）
+func (s *AdminAuthService) BindMobile(ctx context.Context, userID uint64, mobile string, code string) error {
+	// 归一化手机号（controller 已校验格式，这里只做归一化）
+	mobile = helper.NormalizeMobile(mobile)
+	if mobile == "" {
+		return errors.New("手机号不能为空")
+	}
+	if !helper.VerifySMS(s.VerificationCodeManager, mobile, code) {
+		return errors.New("验证码错误或过期")
+	}
+
+	return s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+		// 占用检查
+		exist, _ := ur.FindByMobile(ctx, mobile)
+		if exist != nil && exist.UserID != userID {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("绑定：%s", mobile), false, "绑定失败：手机号已被使用")
+			}
+			return errors.New("手机号已被使用")
+		}
+		// 更新用户手机号
+		if err := ur.UpdateByCondition(ctx, map[string]interface{}{"mobile": mobile}, "user_id = ?", userID); err != nil {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("绑定：%s", mobile), false, "绑定失败：更新用户失败")
+			}
+			return err
+		}
+		// 启用/创建 sms 登录方式
+		login, _ := lr.FindByUserIDAndLoginTypeAnyStatus(ctx, userID, string(helper.LoginTypeMobile))
+		if login != nil {
+			if err := lr.UpdateByCondition(ctx, map[string]interface{}{"login_value": mobile, "status": 1}, "login_id = ?", login.LoginID); err != nil {
+				if s.LoginLogRepo != nil {
+					_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("绑定：%s", mobile), false, "绑定失败：启用短信登录失败")
+				}
+				return err
+			}
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("绑定：%s", mobile), true, "绑定手机号成功")
+			}
+			return nil
+		}
+		if err := lr.Create(ctx, &model.AdminUserLogin{
+			UserID:          userID,
+			LoginType:       string(helper.LoginTypeMobile),
+			LoginValue:      mobile,
+			LoginCredential: "",
+			Salt:            "",
+			Status:          1,
+		}); err != nil {
+			if s.LoginLogRepo != nil {
+				_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("绑定：%s", mobile), false, "绑定失败：创建短信登录失败")
+			}
+			return err
+		}
+		if s.LoginLogRepo != nil {
+			_ = s.LoginLogRepo.CreateLog(ctx, userID, "account", "", fmt.Sprintf("绑定：%s", mobile), true, "绑定手机号成功")
+		}
+		return nil
+	})
+}
+
+// Logout 用户登出
+// 记录登出日志，清除会话信息
+func (s *AdminAuthService) Logout(ctx context.Context, userID uint64, ip string, ua string) error {
+	// 记录登出日志
+	if s.LoginLogRepo != nil {
+		_ = s.LoginLogRepo.CreateLog(ctx, userID, "logout", ip, ua, true, "用户主动登出")
+	}
+	// 注意：JWT token 是 stateless 的，通常不需要在黑名单中标记
+	// 如果需要强制使 token 失效，可以调用 InvalidateUserSessions 来更新密码变更时间戳
+	// 这样所有在登出前签发的 token 都会被 JWT 中间件判定为失效
+	return nil
+}
+
+// GetUserInfo 获取用户信息
+func (s *AdminAuthService) GetUserInfo(ctx context.Context, userID uint64) (*dto.UserInfo, error) {
+	user, err := s.UserRepo.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return toUserInfo(user), nil
+}
+
+// GetUserList 获取用户列表按分页
+// ume 参数可能是 username、mobile 或 email，支持在这三个字段中搜索
+func (s *AdminAuthService) GetUserList(ctx context.Context, page int, pageSize int, ume string, status int) ([]*dto.UserInfo, int64, error) {
+	var condition string
+	var args []interface{}
+
+	// 构建查询条件
+	var conditions []string
+	var conditionArgs []interface{}
+
+	// 如果 ume 不为空，在 username、mobile、email 中搜索（支持模糊匹配）
+	if ume != "" {
+		// 使用 OR 条件在三个字段中搜索，支持模糊匹配
+		conditions = append(conditions, "(username LIKE ? OR mobile LIKE ? OR email LIKE ?)")
+		searchPattern := "%" + ume + "%"
+		conditionArgs = append(conditionArgs, searchPattern, searchPattern, searchPattern)
+	}
+
+	// 如果 status 有效（通常是 0 或 1），添加状态过滤
+	// status = -1 表示查询所有状态
+	if status >= 0 {
+		conditions = append(conditions, "status = ?")
+		conditionArgs = append(conditionArgs, status)
+	}
+
+	// 组合条件
+	if len(conditions) > 0 {
+		condition = strings.Join(conditions, " AND ")
+		args = conditionArgs
+	}
+
+	// 执行查询
+	users, total, err := s.UserRepo.FindWithPagination(ctx, page, pageSize, "user_id", true, condition, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	userInfos := make([]*dto.UserInfo, len(users))
+
+	for i, user := range users {
+		userInfos[i] = toUserInfo(&user)
+	}
+	return userInfos, int64(total), nil
+}
+
+// 更新用户状态
+func (s *AdminAuthService) UpdateUserStatus(ctx context.Context, userID uint64, status int) error {
+	return s.UserRepo.UpdateByCondition(ctx, map[string]interface{}{"status": status}, "user_id = ?", userID)
+}
+
+// 删除用户, 不允许删除用户
+func (s *AdminAuthService) DeleteUser(ctx context.Context, userID uint64) error {
+	return s.UserRepo.UpdateByCondition(ctx, map[string]interface{}{"status": -1}, "user_id = ?", userID)
+}
+
+// AddUser 新增用户（同时创建账密登录和手机号验证码登录两种方式）
+// 在新增之前需要检查用户名和手机号是否被占用
+func (s *AdminAuthService) AddUser(ctx context.Context, req dto.AddUserRequest) error {
+	// 使用事务处理
+	err := s.TxnRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		// 创建用户和登录方式的仓库
+		ur := model.NewAdminUserRepositoryWithDB(tx)
+		lr := model.NewAdminUserLoginRepositoryWithDB(tx)
+
+		log.Printf("新增用户请求参数: %+v", req)
+		// 1. 检查用户名是否存在
+		existUser, _ := ur.FindOneByCondition(ctx, "username = ?", req.Username)
+		if existUser != nil {
+			log.Printf("用户名已存在: %+v", existUser)
+			return errors.New("用户名已存在")
+		}
+
+		// 2. 检查手机号是否存在
+		existUserByMobile, _ := ur.FindByMobile(ctx, req.Mobile)
+		if existUserByMobile != nil {
+			return errors.New("手机号已被占用")
+		}
+
+		// 3. 处理生日字段
+		var birthday *time.Time
+		defaultBirthday := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+		if req.Birthday != "" {
+			parsedBirthday, err := time.Parse("2006-01-02", req.Birthday)
+			if err != nil {
+				birthday = &defaultBirthday
+			} else {
+				birthday = &parsedBirthday
+			}
+		} else {
+			birthday = &defaultBirthday
+		}
+
+		// 4. 处理邮箱字段（可能为空）
+		var email *string
+		if req.Email != "" {
+			email = &req.Email
+		}
+
+		// 5. 创建主表用户
+		user := &model.AdminUser{
+			Username:   req.Username,
+			Realname:   req.Realname,
+			Nickname:   req.Nickname,
+			Avatar:     req.Avatar,
+			Mobile:     &req.Mobile,
+			Email:      email,
+			Gender:     req.Gender,
+			Birthday:   birthday,
+			Position:   "",
+			Status:     helper.UserStatusEnabled,
+			UserSource: req.UserSource,
+		}
+		if err := ur.Create(ctx, user); err != nil {
+			return err
+		}
+
+		// 6. 创建账密登录方式
+		salt := helper.GenerateSalt()
+		if err := lr.Create(ctx, &model.AdminUserLogin{
+			UserID:          user.UserID,
+			LoginType:       string(helper.LoginTypeUsername),
+			LoginValue:      req.Username,
+			LoginCredential: helper.HashPassword(req.Password, salt),
+			Salt:            salt,
+			Status:          helper.LoginMethodStatusEnabled,
+		}); err != nil {
+			return err
+		}
+
+		// 7. 创建手机号验证码登录方式
+		if err := lr.Create(ctx, &model.AdminUserLogin{
+			UserID:          user.UserID,
+			LoginType:       string(helper.LoginTypeMobile),
+			LoginValue:      req.Mobile,
+			LoginCredential: "", // 手机号登录不需要存储密码
+			Salt:            "",
+			Status:          helper.LoginMethodStatusEnabled,
+		}); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// 更新用户
+func (s *AdminAuthService) UpdateUser(ctx context.Context, updateUser dto.UpdateUserRequest) error {
+	// 将birthday转换为time.Time，如果格式不对则默认采用1900-01-01
+	var birthday *time.Time
+	defaultBirthday := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	if updateUser.Birthday != "" {
+		parsedBirthday, err := time.Parse("2006-01-02", updateUser.Birthday)
+		if err != nil {
+			// 格式不对，使用默认值
+			birthday = &defaultBirthday
+		} else {
+			birthday = &parsedBirthday
+		}
+	} else {
+		// 为空，使用默认值
+		birthday = &defaultBirthday
+	}
+	return s.UserRepo.UpdateByCondition(ctx, map[string]interface{}{
+		"realname": updateUser.Realname,
+		"nickname": updateUser.Nickname,
+		"gender":   updateUser.Gender,
+		"birthday": birthday,
+		"email":    updateUser.Email,
+	}, "user_id = ?", updateUser.UserID)
+}
+
+// UpdateCurrentUserProfileReq 更新当前用户个人信息请求
+type UpdateCurrentUserProfileReq struct {
+	Realname string
+	Nickname string
+	Email    string
+	Gender   int
+	Birthday string
+}
+
+// UpdateCurrentUserProfile 更新当前用户个人信息
+func (s *AdminAuthService) UpdateCurrentUserProfile(ctx context.Context, userID uint64, req UpdateCurrentUserProfileReq) error {
+	// 将birthday转换为time.Time，如果格式不对则默认采用1900-01-01
+	var birthday *time.Time
+	defaultBirthday := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	if req.Birthday != "" {
+		parsedBirthday, err := time.Parse("2006-01-02", req.Birthday)
+		if err != nil {
+			// 格式不对，使用默认值
+			birthday = &defaultBirthday
+		} else {
+			birthday = &parsedBirthday
+		}
+	} else {
+		// 为空，使用默认值
+		birthday = &defaultBirthday
+	}
+
+	// 处理邮箱字段（可能为空）
+	var email *string
+	if req.Email != "" {
+		email = &req.Email
+	}
+
+	// 更新用户基本信息
+	updateData := map[string]interface{}{
+		"realname": req.Realname,
+		"nickname": req.Nickname,
+		"email":    email,
+		"gender":   req.Gender,
+		"birthday": birthday,
+	}
+
+	return s.UserRepo.UpdateByCondition(ctx, updateData, "user_id = ?", userID)
+}
+
+// 更新用户最后登录时间和IP
+func (s *AdminAuthService) UpdateUserLastLogin(ctx context.Context, userID uint64, loginTime time.Time, loginIP string) error {
+	return s.UserRepo.UpdateByCondition(ctx, map[string]interface{}{
+		"last_login_time": loginTime,
+		"last_login_ip":   loginIP,
+	}, "user_id = ?", userID)
+}
+
+// --------- helpers ---------
+
+func successResp(token string, user *model.AdminUser) *dto.LoginResponse {
+	return &dto.LoginResponse{Status: "success", Message: "ok", Token: token, User: toUserInfo(user)}
+}
+
+func failResp(msg string) *dto.LoginResponse {
+	return &dto.LoginResponse{Status: "error", Message: msg}
+}
+
+func toUserInfo(u *model.AdminUser) *dto.UserInfo {
+	if u == nil {
+		return nil
+	}
+
+	var birthday string
+	var lastLoginTime string
+
+	if u.Birthday != nil {
+		birthday = u.Birthday.Format("2006-01-02")
+	} else {
+		birthday = "1900-01-01"
+	}
+
+	if u.LastLoginTime != nil {
+		lastLoginTime = u.LastLoginTime.Format("2006-01-02 15:04:05")
+	} else {
+		lastLoginTime = "1900-01-01 00:00:00"
+	}
+
+	return &dto.UserInfo{
+		UserID:        u.UserID,
+		Username:      u.Username,
+		Realname:      u.Realname,
+		Nickname:      u.Nickname,
+		Avatar:        u.Avatar,
+		Mobile:        u.Mobile,
+		Email:         u.Email,
+		Gender:        u.Gender,
+		Birthday:      birthday,
+		Position:      u.Position,
+		Status:        u.Status,
+		UserSource:    u.UserSource,
+		LastLoginTime: lastLoginTime,
+		LastLoginIP:   u.LastLoginIP,
+		CreatedAt:     u.CreatedAt.Format("2006-01-02 15:04:05"), // 格式化时间为 YYYY-MM-DD HH:MM:SS
+		UpdatedAt:     u.UpdatedAt.Format("2006-01-02 15:04:05"), // 格式化时间为 YYYY-MM-DD HH:MM:SS
+	}
+}
+
+func toString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}

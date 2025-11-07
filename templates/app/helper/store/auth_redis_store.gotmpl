@@ -1,0 +1,166 @@
+package store
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"{{.ProjectName}}/app/model"
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/redisx"
+)
+
+// AuthRedisStore 统一封装与认证安全相关的 Redis 存取
+// 职责：
+// - OAuth state/nonce 生成与一次性校验
+// - 会话失效（密码修改）时间戳的读写
+// - 用户权限缓存（用于权限检查中间件）
+type AuthRedisStore struct {
+	redis *redisx.RedisClient
+}
+
+// UserPermissionCache 用户权限缓存数据结构
+type UserPermissionCache struct {
+	IsSuperAdmin bool                     `json:"is_super_admin"`
+	Permissions  []model.AdminPermissions `json:"permissions"`
+}
+
+var (
+	// globalAuthRedisStore 全局 AuthRedisStore 实例（单例模式，避免重复创建）
+	globalAuthRedisStore *AuthRedisStore
+)
+
+// GetAuthRedisStore 获取全局 AuthRedisStore 实例（单例模式）
+func GetAuthRedisStore() *AuthRedisStore {
+	if globalAuthRedisStore == nil {
+		globalAuthRedisStore = &AuthRedisStore{redis: taurus.Container.Redis}
+	}
+	return globalAuthRedisStore
+}
+
+// NewAuthRedisStore 基于全局容器构造实例（保留此方法以兼容 wire 注入）
+// 注意：实际返回的是全局单例，避免重复创建
+func NewAuthRedisStore() *AuthRedisStore {
+	return GetAuthRedisStore()
+}
+
+// CreateOAuthStateNonce 生成并持久化 state/nonce（TTL 默认5分钟）
+func (s *AuthRedisStore) CreateOAuthStateNonce(ttl time.Duration) (state, nonce string, err error) {
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	state, err = randomB64ForAuth(16)
+	if err != nil {
+		return "", "", err
+	}
+	nonce, err = randomB64ForAuth(16)
+	if err != nil {
+		return "", "", err
+	}
+	ctx := context.Background()
+	// 存储 state（改进：检查错误）
+	if err = s.redis.Set(ctx, fmt.Sprintf("oauth:state:%s", state), "1", ttl); err != nil {
+		return "", "", fmt.Errorf("failed to set oauth state: %w", err)
+	}
+	// 存储 nonce（改进：检查错误）
+	if err = s.redis.Set(ctx, fmt.Sprintf("oauth:nonce:%s", nonce), "1", ttl); err != nil {
+		// 如果 nonce 存储失败，尝试清理已存储的 state（尽力而为）
+		_ = s.redis.Del(ctx, fmt.Sprintf("oauth:state:%s", state))
+		return "", "", fmt.Errorf("failed to set oauth nonce: %w", err)
+	}
+	return
+}
+
+// VerifyAndConsumeOAuthStateNonce 校验并消费 state/nonce，一次性
+func (s *AuthRedisStore) VerifyAndConsumeOAuthStateNonce(state, nonce string) bool {
+	ctx := context.Background()
+	if state == "" || nonce == "" {
+		return false
+	}
+	sk := fmt.Sprintf("oauth:state:%s", state)
+	nk := fmt.Sprintf("oauth:nonce:%s", nonce)
+	sv, _ := s.redis.Get(ctx, sk)
+	nv, _ := s.redis.Get(ctx, nk)
+	if sv == "" || nv == "" {
+		return false
+	}
+	_ = s.redis.Del(ctx, sk)
+	_ = s.redis.Del(ctx, nk)
+	return true
+}
+
+// InvalidateUserSessions 更新最近一次改密时间戳
+func (s *AuthRedisStore) InvalidateUserSessions(userID uint64) error {
+	ctx := context.Background()
+	key := fmt.Sprintf("user:last_pw_change:%d", userID)
+	ts := fmt.Sprintf("%d", time.Now().Unix())
+	return s.redis.Set(ctx, key, ts, 0)
+}
+
+// GetLastPasswordChangeAt 读取最近一次改密时间戳（未设置返回 0）
+func (s *AuthRedisStore) GetLastPasswordChangeAt(userID uint64) (int64, error) {
+	ctx := context.Background()
+	key := fmt.Sprintf("user:last_pw_change:%d", userID)
+	sVal, err := s.redis.Get(ctx, key)
+	if err != nil || sVal == "" {
+		return 0, err
+	}
+	var v int64
+	_, scanErr := fmt.Sscan(sVal, &v)
+	return v, scanErr
+}
+
+// GetUserPermissionCache 获取用户权限缓存
+// userID: 用户ID
+// 返回: 缓存数据，如果不存在或已过期返回 nil
+func (s *AuthRedisStore) GetUserPermissionCache(ctx context.Context, userID uint64) (*UserPermissionCache, error) {
+	key := fmt.Sprintf("user:permission:%d", userID)
+	val, err := s.redis.Get(ctx, key)
+	if err != nil || val == "" {
+		return nil, err
+	}
+
+	var cache UserPermissionCache
+	if err := json.Unmarshal([]byte(val), &cache); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal permission cache: %w", err)
+	}
+
+	return &cache, nil
+}
+
+// SetUserPermissionCache 设置用户权限缓存
+// userID: 用户ID
+// cache: 缓存数据
+// ttl: 过期时间，如果 <= 0 则使用默认值 5 分钟
+func (s *AuthRedisStore) SetUserPermissionCache(ctx context.Context, userID uint64, cache *UserPermissionCache, ttl time.Duration) error {
+	if ttl <= 0 {
+		ttl = 5 * time.Minute // 默认缓存 5 分钟
+	}
+
+	key := fmt.Sprintf("user:permission:%d", userID)
+	val, err := json.Marshal(cache)
+	if err != nil {
+		return fmt.Errorf("failed to marshal permission cache: %w", err)
+	}
+
+	return s.redis.Set(ctx, key, string(val), ttl)
+}
+
+// InvalidateUserPermissionCache 清除指定用户的权限缓存（权限修改后调用）
+func (s *AuthRedisStore) InvalidateUserPermissionCache(ctx context.Context, userID uint64) error {
+	key := fmt.Sprintf("user:permission:%d", userID)
+	return s.redis.Del(ctx, key)
+}
+
+// randomB64ForAuth 生成加密安全随机串并使用 Base64-URL（无填充）编码
+func randomB64ForAuth(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}

@@ -3,6 +3,7 @@ package middleware
 import (
 	"{{.ProjectName}}/internal/taurus"
 	"net/http"
+	"strings"
 
 	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
 )
@@ -28,10 +29,26 @@ func AuthMiddleware() func(next http.Handler) http.Handler {
 	}
 }
 
+// GetAuthToken 从请求中提取授权令牌
 func GetAuthToken(r *http.Request) string {
 	token := r.Header.Get("Authorization")
 	if token == "" {
 		return ""
 	}
+	// 支持 "Bearer <token>" 格式
+	if strings.HasPrefix(token, "Bearer ") {
+		return strings.TrimPrefix(token, "Bearer ")
+	}
+
 	return token
+}
+
+// SetAuthToken 设置授权令牌到Header
+func SetAuthToken(w http.ResponseWriter, token string) {
+	// 支持 "Bearer <token>" 格式
+	if strings.HasPrefix(token, "Bearer ") {
+		w.Header().Set("Authorization", token)
+	} else {
+		w.Header().Set("Authorization", "Bearer "+token)
+	}
 }

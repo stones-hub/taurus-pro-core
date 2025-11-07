@@ -1,0 +1,116 @@
+package service
+
+import (
+	"context"
+	"{{.ProjectName}}/app/model"
+	"time"
+
+	"github.com/google/wire"
+)
+
+type AdminLoginLogService struct {
+	LoginLogRepo *model.AdminUserLoginLogRepository
+}
+
+var AdminLoginLogServiceSet = wire.NewSet(NewAdminLoginLogService)
+
+func NewAdminLoginLogService() *AdminLoginLogService {
+	return &AdminLoginLogService{
+		LoginLogRepo: model.NewAdminUserLoginLogRepository(),
+	}
+}
+
+func (s *AdminLoginLogService) Create(ctx context.Context, loginLog *model.AdminUserLoginLog) error {
+	return s.LoginLogRepo.Create(ctx, loginLog)
+}
+
+// LoginLogQueryParams 登录日志查询参数
+type LoginLogQueryParams struct {
+	UserID      uint64     `json:"user_id"`      // 用户ID（0表示不过滤）
+	LoginType   string     `json:"login_type"`   // 登录方式（空字符串表示不过滤）
+	LoginStatus *int8      `json:"login_status"` // 登录状态（nil表示不过滤，0失败，1成功）
+	StartTime   *time.Time `json:"start_time"`   // 开始时间（nil表示不过滤）
+	EndTime     *time.Time `json:"end_time"`     // 结束时间（nil表示不过滤）
+	LoginIP     string     `json:"login_ip"`     // 登录IP（空字符串表示不过滤，支持模糊匹配）
+	Page        int        `json:"page"`         // 页码（从1开始，0表示不分页）
+	PageSize    int        `json:"page_size"`    // 每页数量（0表示不分页）
+}
+
+// QueryLogs 根据组合条件智能查询登录日志
+// 支持根据用户ID、登录方式、登录状态、登录时间区间、登录IP进行组合查询
+// 支持分页查询，默认按登录时间倒序排列
+func (s *AdminLoginLogService) QueryLogs(ctx context.Context, params LoginLogQueryParams) ([]model.AdminUserLoginLog, int64, error) {
+	var loginStatus int8 = -1
+	if params.LoginStatus != nil {
+		loginStatus = *params.LoginStatus
+	}
+
+	return s.LoginLogRepo.FindWithConditions(
+		ctx,
+		params.UserID,
+		params.LoginType,
+		loginStatus,
+		params.StartTime,
+		params.EndTime,
+		params.LoginIP,
+		params.Page,
+		params.PageSize,
+	)
+}
+
+// QueryLogsByUserID 根据用户ID查询登录日志（支持分页）
+func (s *AdminLoginLogService) QueryLogsByUserID(ctx context.Context, userID uint64, page, pageSize int) ([]model.AdminUserLoginLog, int64, error) {
+	return s.QueryLogs(ctx, LoginLogQueryParams{
+		UserID:   userID,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}
+
+// QueryLogsByTimeRange 根据时间范围查询登录日志（支持分页）
+func (s *AdminLoginLogService) QueryLogsByTimeRange(ctx context.Context, startTime, endTime time.Time, page, pageSize int) ([]model.AdminUserLoginLog, int64, error) {
+	return s.QueryLogs(ctx, LoginLogQueryParams{
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		Page:      page,
+		PageSize:  pageSize,
+	})
+}
+
+// QueryFailedLogs 查询失败登录日志（支持分页）
+func (s *AdminLoginLogService) QueryFailedLogs(ctx context.Context, page, pageSize int) ([]model.AdminUserLoginLog, int64, error) {
+	status := int8(0)
+	return s.QueryLogs(ctx, LoginLogQueryParams{
+		LoginStatus: &status,
+		Page:        page,
+		PageSize:    pageSize,
+	})
+}
+
+// QuerySuccessLogs 查询成功登录日志（支持分页）
+func (s *AdminLoginLogService) QuerySuccessLogs(ctx context.Context, page, pageSize int) ([]model.AdminUserLoginLog, int64, error) {
+	status := int8(1)
+	return s.QueryLogs(ctx, LoginLogQueryParams{
+		LoginStatus: &status,
+		Page:        page,
+		PageSize:    pageSize,
+	})
+}
+
+// QueryLogsByLoginType 根据登录方式查询日志（支持分页）
+func (s *AdminLoginLogService) QueryLogsByLoginType(ctx context.Context, loginType string, page, pageSize int) ([]model.AdminUserLoginLog, int64, error) {
+	return s.QueryLogs(ctx, LoginLogQueryParams{
+		LoginType: loginType,
+		Page:      page,
+		PageSize:  pageSize,
+	})
+}
+
+// QueryLogsByIP 根据登录IP查询日志（支持模糊匹配和分页）
+func (s *AdminLoginLogService) QueryLogsByIP(ctx context.Context, loginIP string, page, pageSize int) ([]model.AdminUserLoginLog, int64, error) {
+	return s.QueryLogs(ctx, LoginLogQueryParams{
+		LoginIP:  loginIP,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}

@@ -11,7 +11,7 @@ services:
     ports:
       - "${HOST_PORT:-8080}:${CONTAINER_PORT:-8080}" # 设置端口映射
     environment: # 给容器设置环境变量
-      - MYSQL_DSN=${DB_DSN:-apps:apps@tcp(mysql:3306)/kf_ai?charset=utf8mb4&parseTime=True&loc=Local}
+      - MYSQL_DSN=${DB_DSN:-apps:apps_password@tcp(mysql:3306)/admin?charset=utf8mb4&parseTime=True&loc=Local}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379} # 设置redis连接
       - TZ=Asia/Shanghai # 设置时区
     env_file: # 设置环境变量文件, 当前容器内的应用需要的环境变量, 这里是app应用
@@ -32,9 +32,9 @@ services:
     container_name: mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${DB_NAME:-kf_ai} 
+      MYSQL_DATABASE: ${DB_NAME:-admin} 
       MYSQL_USER: ${DB_USER:-apps}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-apps}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-apps_password}
       TZ: Asia/Shanghai # 设置时区
     healthcheck: # 设置健康检查，配合depends_on使用，如果依赖的服务没有启动成功，当前服务不会启动
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Taurus Pro 后台管理系统</title>
+  <meta name="keywords" content="" />
+  <meta name="description" content="" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="/static/images/favicon.png">
+  <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+  <link rel="stylesheet" href="/static/css/common.css" />
+
+  <script type='text/javascript' src="/static/lib/nui.min.js"></script>
+  <script type="text/javascript" src="/static/js/lib/jquery@3.3.1/jquery.min.js"></script>
+  <script type="text/javascript" src="/static/js/tools.js"></script>
+  <script type="text/javascript" src="/static/js/components/my-simple-table.js"></script>
+  <script type="text/javascript" src="/static/js/config.js"></script>
+  <script type="text/javascript" src="/static/js/app.js"></script>
+  <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <ui-container style="height: 100%;">
+      <!-- S 头部 -->
+      <ui-header>
+        <!-- S logo -->
+        <div class="header-item" @click="changePage(url.home)"><img src="/static/images/img-logo_1.png" alt="" /></div>
+        <!-- E logo -->
+        <!-- S 头部菜单 -->
+        <div class="header-item header-item--full">
+          <div class="header-item__menus">
+            <template v-for="(menus, i) in systemMenu">
+              <v-popover v-if="checkMode(menus,'float')" :key="i" class="header-item__menu"
+                         :class="{'is-active': systemIndex == i}" popover-class="header-popover-menu"
+                         placement="bottom-start" trigger="hover" @click.native="menuClick(i,$event)">
+                <div class="header-popover-menu__panel" slot="popover">
+                  <div class="header-popover-menu__list" v-for="menu in menus.children" :key="menu.name">
+                    <div class="header-popover-menu__title">
+                      <ui-icon v-if="menu.icon" :icon="menu.icon"></ui-icon>
+                      <span>{{menu.name}}</span>
+                    </div>
+                    <div v-for="item in menu.children" :key="item.name" class="header-popover-menu__item"
+                         :class="{'is-selected': nowPage == item.link}" :title="item.name" v-close-popover
+                         @click="menuPopoverClick(item, i)">
+                      <a aria-haspopup="true" :href="'#' + item.link"
+                         @click.prevent>@{{item.name}}<ui-ripple-ink></ui-ripple-ink></a>
+                    </div>
+                  </div>
+                </div>
+                {{menus.name}}
+                <ui-ripple-ink></ui-ripple-ink>
+              </v-popover>
+              <div v-else :key="i" class="header-item__menu" :class="{'is-active': systemIndex == i}"
+                   @click="menuClick(i,$event)">
+                {{menus.name}}
+                <ui-ripple-ink></ui-ripple-ink>
+              </div>
+            </template>
+          </div>
+        </div>
+        <!-- E 头部菜单 -->
+        <!-- S 用户信息 -->
+        <div class="header-item header-item__text">你好，用户名</div>
+        <div class="header-item header-item__avatar">
+          <ui-dropdown class="header-item__avatar-dropdown" type="secondary" trigger="hover"
+                       @open="$emit('open:avatar-dropdown')">
+            <ui-menu class="header-item__avatar-menu" slot="dropdown">
+              <template v-for="item in avatarMenu">
+                <ui-menu-item v-if="!item.hidden" :key="item.name" :icon="item.icon" :disabled="item.disabled"
+                              :divider="item.divider" @click="genHandler($event, item.click)">
+                  {{item.text}}
+                  <ui-badge v-if="item.badge" slot="append" color="red" :value="item.badge"
+                            v-bind="item.badgeOptions"></ui-bads>
+                </ui-menu-item>
+              </template>
+            </ui-menu>
+            <img src="/static/images/img-avatar_1.png" width="100%" height="100%" alt="" />
+          </ui-dropdown>
+          <ui-icon icon="arrow_drop_down"></ui-icon>
+        </div>
+        <!-- E 用户信息 -->
+      </ui-header>
+      <!-- E 头部 -->
+      
+      <ui-container>
+        <!-- S 侧边栏 -->
+        <ui-aside v-if="checkMode(curSysMenu,'tree')" :class="{'is-collapse': isCollapse}">
+          <ui-menu class="my-page-menu" :key="systemIndex" :collapse="isCollapse">
+            <ui-submenu v-for="(page, index) in pageMenu" :key="page.name" :title="page.name" :icon="page.icon"
+                        :open="checkMode(curSysMenu,'accordion')?!index:true"
+                        :is-accordion="!!checkMode(curSysMenu,'accordion')">
+              <ui-menu-item v-for="item in page.children" :key="item.name"
+                            :selected="nowPage.split('?')[0] == item.link||nowPage == item.link"
+                            @click="changePage(item.link,false,$event)">
+                <a aria-haspopup="true" :href="'#' + item.link" @click.prevent>{{item.name}}</a>
+              </ui-menu-item>
+            </ui-submenu>
+          </ui-menu>
+          <!-- 收缩按钮 -->
+          <ui-button class="btn-collapse" type="secondary" icon="playlist_play"
+                     @click="isCollapse = !isCollapse"></ui-button>
+        </ui-aside>
+        <!-- E 侧边栏 -->
+
+        <!-- S 内容 -->
+        <ui-main id="main" :class="{'is-mask':maskCount>0}">
+          <div class="app-mask"></div>
+          <div id="iframeContainer">
+            <iframe id="iframePage" :key="nowPage" :src="nowPage" frameborder="0" @load="loadPage"
+                    @error="errorPage"></iframe>
+          </div>
+          <!-- 页脚 -->
+          <div id="footer">© 2001 - {{currentYear}} Taurus Pro开发团队</div>
+        </ui-main>
+        <!-- E 内容 -->
+      </ui-container>
+    </ui-container>
+
+    <!-- 表格弹窗页面 -->
+    <ui-modal class="my-table-modal" ref="modal" :size="modal.size" :title="modal.title" @close="modal.src=''">
+      <!-- 加载进度条 -->
+      <ui-progress-linear v-show="modal.loading" color="primary" type="indeterminate"></ui-progress-linear>
+      <iframe :style="{width:modal.width, height:modal.height}" :src="modal.src" width="100%" height="100%"
+              frameborder="0" @load="modal.loading=false" @error="modal.loading=false"></iframe>\
+    </ui-modal>
+
+    <!-- 外框注入组件 -->
+    <component v-for="component in injectComponents" :is="component" :key="component" :ref="component"></component>
+  </div>
+  <script>
+    window.addEventListener("resize", function () {
+      NUI.__app__.resizeWindow();
+    })
+    NUI({
+      // 数据集合
+      data: {
+        url: {
+          home: 'page/account/user.html', // 点击logo图跳转地址
+          logout: '' // 登出地址
+        },
+
+        systemName: '乾坤系统', // 浏览器标签页上分隔符后面的名称
+        systemIndex: -1,
+        systemLinkMap: {},
+        currentYear: new Date().getFullYear(), // 当前年份
+        buttonPermissions: [], // 用户按钮权限编码列表
+        // 头部菜单（将从后端动态加载）
+        systemMenu: [
+          {
+            name: '系统管理',
+            mode: ['tree'],
+            children: [
+              {
+                name: '用户权限管理',
+                icon: 'settings_applications',
+                children: [
+                  {
+                    name: '用户管理',
+                    link: 'page/account/user.html'
+                  },
+                  {
+                    name: '角色管理',
+                    link: 'page/account/role.html'
+                  },
+                  {
+                    name: '权限管理',
+                    link: 'page/account/permission.html'
+                  }
+                ]
+              },
+              {
+                name: '后台日志',
+                icon:'markunread_mailbox',
+                children: [
+                  {
+                    name: '登录日志',
+                    link: 'page/log/login.html'
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            name: 'Demo示例',
+            mode: ['tree'],
+            children: [
+              {
+                name: 'Demo管理',
+                children: [
+                  {
+                    name: 'Demo信息',
+                    link: 'page/demo/demo.html'
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        // 头部右侧用户头像菜单
+        avatarMenu: [
+          { name: 'user', text: '账号：用户名', icon: 'person', disabled: true },
+          { name: 'email', text: '邮箱：email@3k.com', icon: 'email', disabled: true },
+          { name: 'phone', text: '手机号：12345678912', icon: 'phone_iphone', disabled: true },
+          { name: 'department', text: '部门：技术部门', icon: 'group', disabled: true },
+          //{ name: 'download', text: '我的下载', icon: 'get_app', badge: 0, click: "$refs['inject-my-download'][0].$refs['myDownload'].open()" },
+          { name: 'logout', text: '登出', icon: 'power_settings_new', divider: true, click: 'logout()' },
+        ],
+
+        maskCount: 0,
+        isCollapse: false,
+
+        nowPage: window.location.hash.replace(/^#/, '') || 'page/profile/profile.html',
+        records: JSON.parse(localStorage.getItem('RECORD_PAGE') || '[]'),
+
+        // 注入组件
+        injectComponents: [],
+
+        /* 弹窗尺寸 */
+        modal: {
+          loading: false, // 加载状态
+          size: 'auto',  // 弹窗大小
+          src: '',       //
+          title: '标题', //
+          width: '',     //
+          height: ''     //
+        },
+        isHasWindowConfirm: false
+      },
+      computed: {
+        curSysMenu: function () {
+          return this.systemMenu[this.systemIndex] || {};
+        },
+        pageMenu: function () {
+          return this.curSysMenu.children || []
+        }
+      },
+      // dom没生成之前自动执行，多用于初始化数据
+      created() {
+        this.loadUserInfo();
+        // 加载用户菜单和按钮权限
+        this.loadMenusAndButtons();
+      },
+      // dom生成之后自动执行，多用于监听事件
+      mounted() {
+        window.addEventListener('message', function (event) {
+          if (event.data && typeof event.data === 'string') {
+            var data = JSON.parse(event.data);
+            if (data && data.action === 'window_close_confirm' && data.action_type == "qiankun_window_event") {
+              NUI.data.isHasWindowConfirm = true
+            }
+          }
+        });
+        NUI.NProgress.start()
+        NUI.listenMessage(function (e) {
+          var res = e.data;
+          switch (res.type) {
+            // 切换分页
+            case 'changePage':
+              NUI.NProgress.start()
+              if (res.data) NUI.__app__.changePage(res.data);
+              break;
+            // 切换侧边栏
+            case 'collapse':
+              NUI.data.isCollapse = res.data;
+              break;
+            // 打开全局遮罩
+            case 'openMask':
+              NUI.data.maskCount++;
+              break;
+            // 关闭全局遮罩
+            case 'closeMask':
+              NUI.data.maskCount = Math.max(NUI.data.maskCount - 1, 0);
+              break;
+            // 跳转页面
+            case 'jumpUrl':
+              NUI.__app__.jumpUrl(res.data);
+              break;
+            // 打开表格弹窗
+            case 'tableModal':
+              NUI.data.modal.loading = true;
+              NUI.data.modal.title = res.data.title;
+              NUI.data.modal.width = res.data.width;
+              NUI.data.modal.height = res.data.height;
+              NUI.data.modal.size = res.data.size;
+              NUI.data.modal.src = res.data.src;
+              NUI.__app__.$refs['modal'].open();
+              break;
+          }
+          NUI.__app__.$emit('listenMessage', res)
+        });
+        NUI.__app__.initMenu();
+
+        if ('onhashchange' in window) window.onhashchange = NUI.__app__.onHashChange;
+      },
+      // 用于监听数据变化， 数据来源于data的数据， 数据变化时，会执行handler函数
+      watch: { 
+        isCollapse: function () {
+          NUI.__app__.resizeWindow()
+        },
+        avatarMenu: {
+          handler(newVal, oldVal) {
+            console.log(newVal, oldVal);
+          },
+          deep: true,
+          immediate: false
+        }
+      },
+      // 方法集合
+      methods: {
+        resizeWindow: function () {
+          NUI.nextTick(function () {
+            var iframeContainer = document.getElementById("iframeContainer");
+            var asidewidth;
+            var isCollapse = document.querySelectorAll('.ui-aside.is-collapse')
+            if (isCollapse.length > 0) {
+              asidewidth = isCollapse[0].offsetWidth || 0;
+            } else {
+              asidewidth = document.getElementsByClassName('ui-aside')[0].offsetWidth || 0;
+            }
+            iframeContainer.style.width = document.documentElement.clientWidth - asidewidth + "px";
+            iframeContainer.style.height = `calc(100% - 35px)`;
+
+            var footerContainer = document.getElementById("footer");
+            footerContainer.style = `font-size:12px; height: 50px; position: absolute; bottom: 0; height: 32px; line-height: 32px; text-align: center; background: #f5f5f5; width: ${document.documentElement.clientWidth - asidewidth + "px"}`
+            
+          })
+        },
+        onHashChange: function () {
+          var page = window.location.hash.slice(1);
+          NUI.__app__.changePage(page, true);
+        },
+        setTitle(name) {
+          if (!name) name = '首页';
+          document.title = name + ' | ' + NUI.data.systemName;
+        },
+        checkMode: function (menu, model) {
+          return ~(menu && menu.mode || []).indexOf(model)
+        },
+        recordPage: function (page, name) {
+          if (!name) return;
+
+          var records = NUI.data.records;
+          for (var i = records.length - 1; i >= 0; i--) {
+            if (page == records[i].page && name == records[i].name) {
+              records.splice(i, 1)
+              break;
+            }
+          }
+          records.unshift({ name: name, page: page })
+          NUI.data.records = records.slice(0, 8);
+          localStorage.setItem('RECORD_PAGE', JSON.stringify(records))
+        },
+        handlerMessage(fn,$event){
+          if(NUI.data.isHasWindowConfirm){
+            NUI.$confirm('检测到您还有未保存的操作，是否离开？', '确认框').then(function(){
+              NUI.data.isHasWindowConfirm = false;
+              if(!$event) return false
+              const curEl = $event.target.closest('.ui-menu-item')
+              curEl.classList.add('is-active')
+              fn()
+            }).catch(function(){
+              if(!$event) return false
+              const curEl = $event.target.closest('.ui-menu-item')
+              curEl.classList.remove('is-active')
+            });
+           }else{
+            fn()
+           }
+        },
+        // 切换页面
+        changePage: function (page, isForce,$event) {
+          if (!isForce && 'onhashchange' in window) {
+            NUI.__app__.handlerMessage(function(){
+              window.location.hash = '#' + page;
+            },$event);
+          } else {
+            var name = NUI.data.systemLinkMap[page] ? NUI.data.systemLinkMap[page].pageName : ''
+            NUI.NProgress.start()
+            if (NUI.data.nowPage != page) {
+              NUI.data.nowPage = page
+            } else {
+              document.getElementById('iframePage').src = page
+            }
+            NUI.data.maskCount = Math.max(NUI.data.maskCount - 1, 0)
+            NUI.__app__.setTitle(name)
+            NUI.__app__.recordPage(page, name)
+            NUI.__app__.$emit('changePage', page, name)
+          }
+        },
+        loadPage: function () {
+          NUI.NProgress.done()
+          NUI.__app__.resizeWindow()
+        },
+        errorPage: function () {
+          NUI.NProgress.done()
+        },
+        initMenu() {
+          var systemMenu = NUI.data.systemMenu;
+          for (var i = 0; i < systemMenu.length; i++) {
+            var system = systemMenu[i];
+            if (system.children) {
+              for (var j = 0; j < system.children.length; j++) {
+                var menu = system.children[j];
+                for (var k = 0; k < menu.children.length; k++) {
+                  var page = menu.children[k];
+                  if (!NUI.data.systemLinkMap[page.link]) {
+                    NUI.data.systemLinkMap[page.link] = {
+                      systemIndex: i,
+                      systemName: system.name,
+                      menuIndex: j,
+                      menuName: menu.name,
+                      pageIndex: k,
+                      pageName: page.name,
+                      pageLink: page.link,
+                    };
+                  }
+                }
+              }
+            }
+          }
+          var curPage = NUI.data.systemLinkMap[NUI.data.nowPage] || {};
+          this.menuClick(curPage.systemIndex || 0);
+          this.setTitle(curPage.pageName);
+        },
+        menuClick: function (index,$event) {
+          var data = NUI.data.systemMenu[index]
+          if (this.checkMode(data, 'link') && data.link) {
+            NUI.__app__.handlerMessage(function(){
+              NUI.__app__.jumpUrl(data.link)
+            },$event);
+          } else if (this.checkMode(data, 'tree')) {
+            NUI.data.systemIndex = index;
+          }
+        },
+        menuPopoverClick: function (item, index) {
+          NUI.data.systemIndex = index;
+          NUI.__app__.changePage(item.link);
+        },
+        jumpUrl: function (url) {
+          window.location.href = url;
+        },
+        genHandler($event, exp) {
+          var simplePathRE = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\['[^']*?']|\["[^"]*?"]|\[\d+]|\[[A-Za-z_$][\w$]*])*$/;
+          var fnExpRE = /^([\w$_]+|\([^)]*?\))\s*=>|^function(?:\s+[\w$]+)?\s*\(/;
+          return Function.prototype.constructor(''.concat(
+            'with(this){return ',
+            simplePathRE.test(exp) || fnExpRE.test(exp)
+              ? exp
+              : 'function($event){'.concat(exp, '}'),
+            '}'
+          )).call(this).call(this, $event);
+        },
+        // 登出
+        logout() {
+          app.postJson({
+            url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.LOGOUT),
+            success: (res) => {
+              console.log(res);
+              if (res && res.code == 0) {
+                tools.showMsg('登出成功', 1);
+                tools.jumpUrl(API_CONFIG.PAGE.ADMIN_LOGIN, 'logout=1');
+              } else {
+                tools.showMsg(res.message || '登出失败', 0);
+              }
+            },
+          });
+        },
+        loadUserInfo() { // 加载用户信息
+          app.postJson({
+            url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.CURRENT_INFO),
+            success: (res) => {
+              console.log(res);
+              if (res && res.code == 0) {
+                console.log('res.data: ' + JSON.stringify(res.data));
+                NUI.set(this.avatarMenu, 0, { name: 'user', text: '账号：'+res.data.username, icon: 'person', disabled: true });
+                NUI.set(this.avatarMenu, 1, { name: 'email', text: '邮箱：'+res.data.email, icon: 'email', disabled: true });
+                NUI.set(this.avatarMenu, 2, { name: 'phone', text: '手机号：'+res.data.mobile, icon: 'phone_iphone', disabled: true });
+                NUI.set(this.avatarMenu, 3, { name: 'department', text: '部门：'+res.data.Position, icon: 'group', disabled: true });
+                // NUI.set(this.avatarMenu, 4, { name: 'download', text: '我的下载', icon: 'get_app', badge: 0, click: "$refs['inject-my-download'][0].$refs['myDownload'].open()" });
+              } else {
+                tools.showMsg(res.message || '获取用户信息失败', 0);
+              }
+            }
+          });
+        },
+        // 加载用户菜单和按钮权限
+        loadMenusAndButtons() {
+          app.postJson({
+            url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.MENUS_BUTTONS),
+            success: (res) => {
+              console.log('菜单和按钮权限响应:', res);
+              if (res && res.code == 0) {
+                // 1. 更新菜单
+                if (res.data && res.data.menus) {
+                  this.systemMenu = res.data.menus;
+                  console.log('已更新菜单:', this.systemMenu);
+                  // 菜单更新后，需要重新初始化菜单映射
+                  var self = this;
+                  setTimeout(function() {
+                    self.initMenu();
+                  }, 0);
+                }
+                // 2. 存储按钮权限列表
+                if (res.data && res.data.buttons) {
+                  this.buttonPermissions = res.data.buttons;
+                  // 同时存储到localStorage，方便其他页面使用
+                  localStorage.setItem('BUTTON_PERMISSIONS', JSON.stringify(res.data.buttons));
+                  console.log('已更新按钮权限:', this.buttonPermissions);
+                }
+              } else {
+                console.error('获取菜单和按钮权限失败:', res.message);
+                tools.showMsg(res.message || '获取菜单和按钮权限失败', 0);
+              }
+            },
+            error: (err) => {
+              console.error('获取菜单和按钮权限请求失败:', err);
+              tools.showMsg(err.message || '获取菜单和按钮权限请求失败', 0);
+            }
+          });
+        },
+        // 检查用户是否有指定按钮权限（使用app.js中的方法）
+        hasButtonPermission(permissionCode) {
+          return app.hasButtonPermission(permissionCode);
+        }
+      }
+    })
+  </script>
+
+  <!-- 注入组件 -->
+  <!-- 乾坤猫浮标 -->
+  <!-- <script type='text/javascript' src="/static/js/inject/inject-float-desc.js"></script> -->
+  <!-- 用户头像，我的下载 -->
+  <script type='text/javascript' src="/static/js/inject/inject-my-download.demo.js"></script>
+</body>
+
+</html>

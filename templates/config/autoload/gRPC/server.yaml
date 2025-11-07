@@ -1,6 +1,6 @@
 # configs/grpc.yaml
 grpc:
-  enable: true # 是否启用gRPC
+  enable: false # 是否启用gRPC
   address: ":50051"
   max_conns: 50000
   keepalive:

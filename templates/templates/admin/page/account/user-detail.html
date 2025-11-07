@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+    <!-- 需要额外引入：多选表格组件 -->
+    <script
+      type="text/javascript"
+      src="/static/js/components/my-checkbox-table.js?ts=1761903629"
+    ></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">用户编辑</div>
+
+     <div class="my-form ui-grid">
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>用户名：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.username"
+            :disabled=true
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>真实姓名：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.realname"
+            :disabled="pageType === 'detail'"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>昵称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.nickname"
+            :disabled="pageType === 'detail'"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>手机号：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.mobile"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>邮箱：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.email"
+            :disabled="pageType === 'detail'"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>性别：</label>
+          <ui-select
+            class="form-control"
+            placeholder="请选择"
+            v-model="form.gender"
+            :disabled="pageType === 'detail'"
+            :options="select.gender"
+          >
+          </ui-select>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>生日：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.birthday"
+            :disabled="pageType === 'detail'"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>职位：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.position"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>状态：</label>
+          <ui-select
+            class="form-control"
+            placeholder="请选择"
+            v-model="form.status"
+            :disabled="true"
+            :options="select.status"
+          ></ui-select>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>用户来源：</label>
+          <ui-select
+            class="form-control"
+            placeholder="请选择"
+            v-model="form.user_source"
+            :disabled="true"
+            :options="select.user_source"
+          ></ui-select>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>最后登录时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.last_login_time"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>最后登录IP：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.last_login_ip"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>创建时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.created_at"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>修改时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.updated_at"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label" align="top">用户角色：</label>
+          <div class="form-control ui-grid">
+            <ui-checkbox 
+              v-for="(role, index) in roles" 
+              :key="role.role.role_id"
+              v-model="role.checked"
+              :disabled="false"
+            >{{role.role.role_name}}</ui-checkbox>
+          </div>
+        </div>
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label" align="top">用户权限：</label>
+          <div class="form-control ui-grid">
+            <ui-checkbox 
+              :checked="true" 
+              :disabled="true" 
+              v-for="(permission, index) in permissions" 
+              :key="permission.permission_id"
+              style="margin-right: 15px;"
+             class="ui-grid-cell col-4">{{permission.permission_name}}</ui-checkbox> 
+          </div>
+        </div>
+
+        <!-- 提交 或 返回 -->
+        <div class="btn-group" v-if="pageType != 'detail'">
+          <ui-button
+            v-if="app.hasButtonPermission('system.account.user.edit')"
+            color="primary"
+            @click="onSubmit"
+            :disabled="submitBtn.disabled"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">取消</ui-button>
+        </div>
+      
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.USER_LIST)
+          },
+          options: {
+            tabs: [],
+            checkboxTable: {}
+          },
+          roles: [],
+          permissions: [],
+          form: {
+            user_id: '',
+            username: '',
+            realname: '',
+            nickname: '',
+            avatar: '',
+            mobile: '',
+            email: '',
+            gender: '',
+            birthday: '',
+            position: '',
+            status: '',
+            user_source: '',
+            last_login_time: '',
+            last_login_ip: '',
+            created_at: '',
+            updated_at: '',
+            tabs: '',
+            role_ids: [],
+          },
+          select: {
+            gender: [
+              {
+                value: '0',
+                label: '未知'
+              },
+              {
+                value: '1',
+                label: '男'
+              },
+              {
+                value: '2',
+                label: '女'
+              }
+            ],
+            status: [
+              {
+                value: '1',
+                label: '启用'
+              },
+              {
+                value: '0',
+                label: '禁用'
+              }
+            ],
+            is_admin: [
+              {
+                value: '1',
+                label: '是'
+              },
+              {
+                value: '0',
+                label: '否'
+              }
+            ],
+            user_source: [
+              {
+                value: '1',
+                label: '自主注册'
+              },
+              {
+                value: '2',
+                label: '第三方登录'
+              },
+              {
+                value: '3',
+                label: '其他'
+              }
+            ]
+          },
+          pageType: 'edit', // detail:详情页 edit:编辑页
+          // 提交按钮
+          submitBtn: {
+            disabled: false,
+            text: '提交'
+          }
+        },
+        created() {
+          let urlParams = tools.url2Obj(window.location.href);
+          this.form.user_id = urlParams.user_id || null;
+          this.pageType = urlParams.page_type || 'edit';
+          // 通过user_id获取用户信息
+          this.getUserInfo();
+        },
+        methods: {
+          // 获取用户信息
+          getUserInfo() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.INFO),
+              data: {user_id: this.form.user_id},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  NUI.set(this, 'form', res.data);
+                  console.log("用户信息: ", JSON.stringify(this.form));
+                } else {
+                  tools.showMsg(res.message || '获取用户信息失败', 0);
+                }
+              }
+            });
+            this.getUserPermissions();
+          },
+          // 获取用户的权限配置
+          getUserPermissions() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.GET_USER_ROLE_PERMISSIONS),
+              data: {user_id: this.form.user_id},
+              success: (res) => {
+                console.log("用户权限: ", res.data);
+                if (res && res.code == 0) {
+                  // NUI.set(this, 'options.tabs', res.data.roles);
+                  // NUI.set(this, 'options.checkboxTable', res.data.checkboxTable);
+                  NUI.set(this, 'roles', res.data.roles);
+                  NUI.set(this, 'permissions', res.data.all_permissions);
+                } else {
+                  tools.showMsg(res.message || '获取用户权限失败', 0);
+                }
+              },
+              error: (err) => {
+                console.log("用户权限获取失败: ", err);
+                tools.showMsg(err.message || '用户权限获取失败', 0);
+              }
+            });
+          },
+          onSubmit() {
+            // 设置按钮状态 0：按钮置灰不可点击，1：提交按钮立即还原，2：提交按钮2秒后还原(与消息提示框消息时间同步还原)
+            tools.setSubmitBtn(0);
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.UPDATE),
+              data: {
+                user_id: this.form.user_id,
+                role_ids: this.roles.filter(role => role.checked).map(role => role.role.role_id),
+                realname: this.form.realname,
+                nickname: this.form.nickname,
+                gender: this.form.gender,
+                birthday: this.form.birthday,
+                email: this.form.email,
+              },
+              success: (res) => {
+                console.log("更新用户权限: ", res);
+                if (res && res.code == 0) {
+                  tools.showSuccess(this.url.index);
+                  tools.setSubmitBtn(2);
+                } else {
+                  tools.showMsg(res.message || '更新用户失败', 0);
+                  tools.setSubmitBtn(1);
+                }
+              },
+              error: (err) => {
+                console.log("更新用户权限失败: ", err);
+                tools.showMsg(err.message || '更新用户失败', 0);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            console.log("取消返回: ", this.url.index);
+            tools.returnIndex(this.url.index);
+          }
+        }
+      });
+    </script>
+
+    <style></style>
+  </body>
+</html>

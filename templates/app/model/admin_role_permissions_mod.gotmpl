@@ -1,0 +1,76 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminRolePermissions 角色权限关联表
+type AdminRolePermissions struct {
+	ID           uint64    `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:自增ID"`                                                              // 自增ID
+	RoleID       uint64    `json:"role_id" gorm:"uniqueIndex:uk_role_permission;index:idx_role_id;not null;column:role_id;comment:角色ID"`                   // 角色ID
+	PermissionID uint64    `json:"permission_id" gorm:"uniqueIndex:uk_role_permission;index:idx_permission_id;not null;column:permission_id;comment:权限ID"` // 权限ID
+	CreatedAt    time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                                    // 创建时间
+	UpdatedAt    time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"`        // 修改时间
+}
+
+// TableName 指定表名
+func (AdminRolePermissions) TableName() string {
+	return "admin_role_permissions"
+}
+
+func (AdminRolePermissions) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminRolePermissionsRepository struct {
+	dao.Repository[AdminRolePermissions]
+}
+
+func NewAdminRolePermissionsRepository() *AdminRolePermissionsRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminRolePermissions]()
+	if err != nil {
+		panic("创建AdminRolePermissionsRepository失败: " + err.Error())
+	}
+	return &AdminRolePermissionsRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminRolePermissionsRepositoryWithDB(db *gorm.DB) *AdminRolePermissionsRepository {
+	repo := dao.NewBaseRepository[AdminRolePermissions](db)
+	return &AdminRolePermissionsRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminRolePermissionsRepository) GetDB() *gorm.DB {
+	return (&AdminRolePermissions{}).DB()
+}
+
+// FindByRoleID 根据角色ID查找角色权限关联
+func (r *AdminRolePermissionsRepository) FindByRoleID(ctx context.Context, roleID uint64) ([]AdminRolePermissions, error) {
+	return r.FindByCondition(ctx, "role_id = ?", roleID)
+}
+
+// FindByPermissionID 根据权限ID查找角色权限关联
+func (r *AdminRolePermissionsRepository) FindByPermissionID(ctx context.Context, permissionID uint64) ([]AdminRolePermissions, error) {
+	return r.FindByCondition(ctx, "permission_id = ?", permissionID)
+}
+
+// FindByRoleIDAndPermissionID 根据角色ID和权限ID查找关联
+func (r *AdminRolePermissionsRepository) FindByRoleIDAndPermissionID(ctx context.Context, roleID, permissionID uint64) (*AdminRolePermissions, error) {
+	return r.FindOneByCondition(ctx, "role_id = ? AND permission_id = ?", roleID, permissionID)
+}

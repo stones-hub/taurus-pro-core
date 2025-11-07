@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant Client as 客户端/前端
+    participant Router as 路由层
+    participant Middleware as JWT中间件
+    participant Controller as UserApiController
+    participant Service as AdminAuthService
+    participant LogRepo as LoginLogRepository
+    participant Response as HTTP响应
+
+    Client->>Router: POST /admin/user/logout<br/>(携带JWT token)
+    Router->>Middleware: 路由到登出接口
+    Middleware->>Middleware: 验证JWT token<br/>提取用户ID和用户名
+    alt JWT token无效
+        Middleware->>Response: 401 Unauthorized<br/>"JWT令牌无效"
+        Response->>Client: 返回错误
+    else JWT token有效
+        Middleware->>Controller: 继续处理请求<br/>(在context中设置user_id)
+        Controller->>Controller: 1. 验证请求方法(POST)
+        Controller->>Controller: 2. 从context获取userID
+        Controller->>Controller: 3. 获取客户端IP和User-Agent
+        Controller->>Service: 4. 调用Logout方法<br/>(userID, ip, ua)
+        Service->>LogRepo: 记录登出日志<br/>(login_type="logout", success=true)
+        LogRepo-->>Service: 日志记录完成
+        Service-->>Controller: 返回成功
+        Controller->>Controller: 5. 清除JWT Cookie<br/>(helper.ClearJWTToken)
+        Controller->>Response: 6. 返回成功响应<br/>{"status":"success"}
+        Response->>Client: 200 OK<br/>{"code":200, "message":"登出成功"}
+    end
+

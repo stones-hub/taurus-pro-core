@@ -1,0 +1,137 @@
+package middleware
+
+import (
+	"crypto/rand"
+	"{{.ProjectName}}/internal/taurus"
+	"encoding/base64"
+	"net/http"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+// CSRFTokenKey 负责从请求中提取CSRF Token, 优先从Header中获取, 然后从Cookie中获取
+const CSRFTokenKey = "x-csrf-token"
+
+// CSRFMiddleware CSRF保护中间件, 仅对会修改数据的请求方法（POST/PUT/PATCH/DELETE）进行验证
+// 工作原理（Double Submit Cookie 模式）：
+// 1. 登录时：服务端生成CSRF Token，设置到Cookie（HttpOnly=false，前端可读取）
+// 2. 前端每次POST/PUT/DELETE请求：从Cookie读取CSRF Token，放入请求Header中发送
+// 3. 服务端验证：检查请求Header中的CSRF Token是否等于Cookie中的CSRF Token
+// 4. 只有两者匹配才允许请求，防止CSRF攻击
+func CSRFMiddleware() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 仅对会修改数据的请求方法进行CSRF验证
+			if needsCSRFProtection(r.Method) {
+				CSRFHeaderToken := GetCSRFTokenByHeader(r)
+				if CSRFHeaderToken == "" {
+					httpx.SendResponse(w, http.StatusUnauthorized, "CSRF token 没有找到", nil)
+					return
+				}
+
+				CSRFCookieToken := GetCSRFTokenByCookie(r)
+				if CSRFCookieToken == "" {
+					httpx.SendResponse(w, http.StatusUnauthorized, "CSRF token 没有找到", nil)
+					return
+				}
+				if CSRFHeaderToken != CSRFCookieToken {
+					httpx.SendResponse(w, http.StatusUnauthorized, "CSRF token 不匹配: "+CSRFHeaderToken+" != "+CSRFCookieToken, nil)
+					return
+				}
+			}
+			// 验证通过，继续处理请求
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// needsCSRFProtection 判断请求方法是否需要CSRF保护
+// 通常只有会修改数据的请求方法才需要CSRF保护
+func needsCSRFProtection(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+// GenerateCSRFToken 生成CSRF Token（随机字符串）
+func GenerateCSRFToken() (string, error) {
+	// 使用 crypto/rand 生成32字节随机数据
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	// Base64-URL编码，生成URL安全的token
+	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// GetCSRFTokenByHeader 从请求中提取CSRF Token, 优先从Header中获取
+func GetCSRFTokenByHeader(r *http.Request) string {
+	// 从Header获取CSRF Token
+	headerToken := r.Header.Get(CSRFTokenKey)
+	if headerToken != "" {
+		return headerToken
+	}
+	return ""
+}
+
+// GetCSRFTokenByCookie 从请求中提取CSRF Token, 优先从Cookie中获取
+func GetCSRFTokenByCookie(r *http.Request) string {
+	cookie, err := r.Cookie(CSRFTokenKey)
+	if err != nil || cookie == nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+// SetCSRFToken 设置CSRF Token到Cookie
+func SetCSRFToken(w http.ResponseWriter, token string) {
+	// 计算cookie过期时间，与JWT token过期时间一致
+	expireHours := taurus.Container.Config.GetInt("http.jwt.expire_hours")
+	if expireHours <= 0 {
+		expireHours = 24 // 默认24小时
+	}
+
+	expiresAt := time.Now().Add(time.Duration(expireHours) * time.Hour)
+
+	// 判断是否为HTTPS环境（与JWT保持一致）
+	isSecure := taurus.Container.Config.GetBool("http.jwt.secure")
+
+	// 设置响应头，前端可以通过 JavaScript 读取
+	w.Header().Set(CSRFTokenKey, token)
+
+	// 设置CSRF Token Cookie
+	// 注意：HttpOnly 必须为 false，因为前端需要通过 JavaScript 读取
+	http.SetCookie(w, &http.Cookie{
+		Name:     CSRFTokenKey,
+		Value:    token,
+		Expires:  expiresAt,
+		Path:     "/",
+		HttpOnly: false,    // 前端需要读取，所以不能设为true
+		Secure:   isSecure, // 与JWT保持一致，根据配置设置
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// ClearCSRFToken 清除CSRF Token Cookie
+func ClearCSRFToken(w http.ResponseWriter) {
+	// 删除响应头中的CSRF Token
+	w.Header().Del(CSRFTokenKey)
+
+	// 判断是否为HTTPS环境（与SetCSRFToken保持一致）
+	isSecure := taurus.Container.Config.GetBool("http.jwt.secure")
+
+	// 清除CSRF Token Cookie（设置过期时间为过去，立即失效）
+	http.SetCookie(w, &http.Cookie{
+		Name:     CSRFTokenKey,
+		Value:    "",
+		Expires:  time.Now().Add(-1 * time.Hour),
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   isSecure, // 与SetCSRFToken保持一致
+		SameSite: http.SameSiteLaxMode,
+	})
+}

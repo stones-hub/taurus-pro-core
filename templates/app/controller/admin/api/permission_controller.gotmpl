@@ -1,0 +1,442 @@
+package api
+
+import (
+	"{{.ProjectName}}/app/controller/admin/common"
+	"{{.ProjectName}}/app/helper"
+	"{{.ProjectName}}/app/service"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tmap"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tstruct"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+type PermissionController struct {
+	*common.BaseController
+	PermissionService *service.AdminPermissionsService
+}
+
+var PermissionControllerSet = wire.NewSet(wire.Struct(new(PermissionController), "*"))
+
+// GetPermissionList 获取权限列表接口（需登录）
+func (c *PermissionController) GetPermissionList(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 获取分页参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+	no := tmap.GetInt(body, "page_no", 1)                                            // 当前页码
+	size := tmap.GetInt(body, "page_size", 15)                                       // 每页条数
+	permissionName := strings.TrimSpace(tmap.GetString(body, "permission_name", "")) // 权限名称（过滤前后空格）
+	status := tmap.GetInt(body, "status", -1)                                        // 状态：-1表示所有，0禁用，1启用
+	permissionType := tmap.GetInt(body, "permission_type", -1)                       // 权限类型：-1表示所有
+
+	log.Printf("permission_name(权限名称): %s, status(状态): %d, permission_type(权限类型): %d", permissionName, status, permissionType)
+
+	response, err := c.PermissionService.GetPermissionList(r.Context(), no, size, permissionName, status, permissionType)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, "获取权限列表失败: "+err.Error())
+		return
+	}
+	c.Response(w, helper.CodeSuccess, "获取权限列表成功", response)
+}
+
+// AddPermission 新增权限接口（需登录）
+func (c *PermissionController) AddPermission(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	// 4. 验证必填参数
+	var req struct {
+		ParentID       uint64 `json:"parent_id"`
+		PermissionName string `json:"permission_name"`
+		PermissionCode string `json:"permission_code"`
+		PermissionType int8   `json:"permission_type"`
+		Path           string `json:"path"`
+		Icon           string `json:"icon"`
+		SortOrder      int    `json:"sort_order"`
+		Status         int8   `json:"status"`
+		IsSystem       int8   `json:"is_system"`
+	}
+
+	if err := tstruct.MapToStruct(body, &req); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 4.5. 过滤字符串字段的前后空格
+	req.PermissionName = strings.TrimSpace(req.PermissionName)
+	req.PermissionCode = strings.TrimSpace(req.PermissionCode)
+	req.Path = strings.TrimSpace(req.Path)
+	req.Icon = strings.TrimSpace(req.Icon)
+
+	// 5. 参数校验
+	if req.PermissionName == "" {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限名称不能为空")
+		return
+	}
+	if req.PermissionCode == "" {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限编码不能为空")
+		return
+	}
+	if req.PermissionType < 1 || req.PermissionType > 3 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限类型必须为1(菜单)、2(按钮)或3(接口)")
+		return
+	}
+
+	// 设置默认值
+	if req.Status == 0 {
+		req.Status = 1 // 默认启用
+	}
+
+	// 6. 调用服务层新增权限
+	if err := c.PermissionService.AddPermission(r.Context(), req.ParentID, req.PermissionName, req.PermissionCode, req.PermissionType, req.Path, req.Icon, req.SortOrder, req.Status, req.IsSystem); err != nil {
+		log.Printf("新增权限失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "新增权限失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "新增权限成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// UpdatePermission 更新权限接口（需登录）
+func (c *PermissionController) UpdatePermission(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	// 4. 验证必填参数
+	var req struct {
+		PermissionID   uint64 `json:"permission_id"`
+		ParentID       uint64 `json:"parent_id"`
+		PermissionName string `json:"permission_name"`
+		PermissionCode string `json:"permission_code"`
+		PermissionType int8   `json:"permission_type"`
+		Path           string `json:"path"`
+		Icon           string `json:"icon"`
+		SortOrder      int    `json:"sort_order"`
+		Status         int8   `json:"status"`
+		IsSystem       int8   `json:"is_system"`
+	}
+
+	if err := tstruct.MapToStruct(body, &req); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 4.5. 过滤字符串字段的前后空格
+	req.PermissionName = strings.TrimSpace(req.PermissionName)
+	req.PermissionCode = strings.TrimSpace(req.PermissionCode)
+	req.Path = strings.TrimSpace(req.Path)
+	req.Icon = strings.TrimSpace(req.Icon)
+
+	// 5. 参数校验
+	if req.PermissionID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限ID不能为空")
+		return
+	}
+	if req.PermissionName == "" {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限名称不能为空")
+		return
+	}
+	if req.PermissionCode == "" {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限编码不能为空")
+		return
+	}
+	if req.PermissionType < 1 || req.PermissionType > 3 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限类型必须为1(菜单)、2(按钮)或3(接口)")
+		return
+	}
+
+	// 6. 调用服务层更新权限
+	if err := c.PermissionService.UpdatePermission(r.Context(), req.PermissionID, req.ParentID, req.PermissionName, req.PermissionCode, req.PermissionType, req.Path, req.Icon, req.SortOrder, req.Status, req.IsSystem); err != nil {
+		log.Printf("更新权限失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "更新权限失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "更新权限成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// DeletePermission 删除权限接口（需登录）
+func (c *PermissionController) DeletePermission(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	permissionID := tmap.GetInt64(body, "permission_id", 0)
+	if permissionID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限ID不能为空")
+		return
+	}
+
+	// 4. 调用服务层删除权限
+	if err := c.PermissionService.DeletePermission(r.Context(), uint64(permissionID)); err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	// 5. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "删除权限成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// UpdatePermissionStatus 更新权限状态接口（需登录）
+func (c *PermissionController) UpdatePermissionStatus(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	var req struct {
+		PermissionID uint64 `json:"permission_id"`
+		Status       int    `json:"status"`
+	}
+
+	if err := tstruct.MapToStructWithValidation(body, &req, "permission_id", "status"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 4. 验证状态值
+	if req.Status != 0 && req.Status != 1 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "状态值必须为0(禁用)或1(启用)")
+		return
+	}
+
+	// 5. 调用服务层更新状态
+	if err := c.PermissionService.UpdatePermissionStatus(r.Context(), req.PermissionID, req.Status); err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	// 6. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "状态更新成功", map[string]any{
+		"status": "success",
+		"value":  req.Status,
+	})
+}
+
+// UpdatePermissionIsSystem 更新是否系统权限接口（需登录）
+func (c *PermissionController) UpdatePermissionIsSystem(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	var req struct {
+		PermissionID uint64 `json:"permission_id"`
+		IsSystem     int    `json:"is_system"`
+	}
+
+	if err := tstruct.MapToStructWithValidation(body, &req, "permission_id", "is_system"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 4. 验证状态值
+	if req.IsSystem != 0 && req.IsSystem != 1 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "是否系统权限值必须为0(否)或1(是)")
+		return
+	}
+
+	// 5. 调用服务层更新状态
+	if err := c.PermissionService.UpdatePermissionIsSystem(r.Context(), req.PermissionID, req.IsSystem); err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	// 6. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "是否系统权限更新成功", map[string]any{
+		"status": "success",
+		"value":  req.IsSystem,
+	})
+}
+
+// GetEditPermissionInfo 获取编辑权限信息接口（需登录）
+func (c *PermissionController) GetEditPermissionInfo(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	log.Printf("edit-info body: %+v", body)
+
+	permissionID := tmap.GetInt64(body, "permission_id", 0)
+	if permissionID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "权限ID不能为空")
+		return
+	}
+
+	// 4. 获取权限信息和权限树（用于选择父权限）
+	response, err := c.PermissionService.GetEditPermissionInfo(r.Context(), uint64(permissionID))
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	c.Response(w, helper.CodeSuccess, "获取编辑权限信息成功", response)
+}
+
+// GetPermissionTree 获取权限树接口（用于选择父权限）
+func (c *PermissionController) GetPermissionTree(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数（可选，parentID默认为0，表示获取所有根节点）
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		// 如果解析失败，使用默认值
+		body = map[string]interface{}{}
+	}
+
+	parentID := tmap.GetInt64(body, "parent_id", 0)
+	permissionType := int8(tmap.GetInt(body, "permission_type", 0)) // 可选，用于过滤可选的父权限
+
+	// 4. 调用服务层获取权限树
+	var tree []*service.PermissionTree
+	if permissionType > 0 {
+		// 如果指定了权限类型，只返回可以作为该类型权限的父权限的节点
+		tree, err = c.PermissionService.GetPermissionTree(r.Context(), uint64(parentID), permissionType)
+	} else {
+		// 如果没有指定权限类型，返回所有权限树
+		tree, err = c.PermissionService.GetPermissionTree(r.Context(), uint64(parentID))
+	}
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, "获取权限树失败: "+err.Error())
+		return
+	}
+
+	// 5. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "获取权限树成功", map[string]any{
+		"tree": tree,
+	})
+}

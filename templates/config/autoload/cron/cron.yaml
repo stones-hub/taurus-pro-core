@@ -1,5 +1,5 @@
 cron:
-  enable: true
+  enable: false
   location: "Asia/Shanghai"
   enable_seconds: true
   # 0: 允许并发执行, 1: 如果任务还在运行则跳过本次执行, 2.如果任务还在运行则等待执行完成后再执行

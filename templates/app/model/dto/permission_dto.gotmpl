@@ -1,0 +1,54 @@
+package dto
+
+import "encoding/json"
+
+// PermissionListResponse 权限列表响应
+type PermissionListResponse struct {
+	PageNo      int                           `json:"page_no"`      // 当前页码
+	PageSize    int                           `json:"page_size"`    // 每页条数
+	ResultTotal int64                         `json:"result_total"` // 总记录数
+	List        []*PermissionListResponseItem `json:"list"`         // 权限列表
+}
+
+// PermissionListResponseItem 权限列表项
+type PermissionListResponseItem struct {
+	PermissionID       uint64 `json:"permission_id"`        // 权限ID
+	ParentID           uint64 `json:"parent_id"`            // 父权限ID
+	PermissionName     string `json:"permission_name"`      // 权限名称
+	PermissionCode     string `json:"permission_code"`      // 权限编码
+	PermissionType     int8   `json:"permission_type"`      // 权限类型：1菜单，2按钮，3接口
+	PermissionTypeName string `json:"permission_type_name"` // 权限类型名称
+	Path               string `json:"path"`                 // 路径
+	Icon               string `json:"icon"`                 // 图标
+	SortOrder          int    `json:"sort_order"`           // 排序
+	Status             int8   `json:"status"`               // 状态：1启用，0禁用
+	IsSystem           int8   `json:"is_system"`            // 是否系统权限：1是，0否
+	CreatedAt          string `json:"add_time"`             // 创建时间
+	UpdatedAt          string `json:"update_time"`          // 修改时间
+}
+
+// 重写json序列化
+func (p *PermissionListResponseItem) MarshalJSON() ([]byte, error) {
+	// 将PermissionType转换为字符串 1.菜单 2.按钮 3.接口
+	var permissionTypeName string
+	switch p.PermissionType {
+	case 1:
+		permissionTypeName = "菜单"
+	case 2:
+		permissionTypeName = "按钮"
+	case 3:
+		permissionTypeName = "接口"
+	default:
+		permissionTypeName = "未知"
+	}
+
+	// 使用匿名结构体避免无限递归
+	type Alias PermissionListResponseItem
+	return json.Marshal(&struct {
+		*Alias
+		PermissionTypeName string `json:"permission_type_name"`
+	}{
+		Alias:              (*Alias)(p),
+		PermissionTypeName: permissionTypeName,
+	})
+}

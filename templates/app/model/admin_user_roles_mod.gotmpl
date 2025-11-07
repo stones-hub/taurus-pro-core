@@ -1,0 +1,76 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminUserRole 用户角色关联表
+type AdminUserRole struct {
+	ID        uint64    `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:自增ID"`                                                       // 自增ID
+	UserID    uint64    `json:"user_id" gorm:"uniqueIndex:uk_user_role;index:idx_user_id;not null;column:user_id;comment:用户ID"`                  // 用户ID
+	RoleID    uint64    `json:"role_id" gorm:"uniqueIndex:uk_user_role;index:idx_role_id;not null;column:role_id;comment:角色ID"`                  // 角色ID
+	CreatedAt time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                             // 创建时间
+	UpdatedAt time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"` // 修改时间
+}
+
+// TableName 指定表名
+func (AdminUserRole) TableName() string {
+	return "admin_user_roles"
+}
+
+func (AdminUserRole) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminUserRoleRepository struct {
+	dao.Repository[AdminUserRole]
+}
+
+func NewAdminUserRoleRepository() *AdminUserRoleRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminUserRole]()
+	if err != nil {
+		panic("创建AdminUserRoleRepository失败: " + err.Error())
+	}
+	return &AdminUserRoleRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminUserRoleRepositoryWithDB(db *gorm.DB) *AdminUserRoleRepository {
+	repo := dao.NewBaseRepository[AdminUserRole](db)
+	return &AdminUserRoleRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminUserRoleRepository) GetDB() *gorm.DB {
+	return (&AdminUserRole{}).DB()
+}
+
+// FindByUserID 根据用户ID查找用户角色关联
+func (r *AdminUserRoleRepository) FindByUserID(ctx context.Context, userID uint64) ([]AdminUserRole, error) {
+	return r.FindByCondition(ctx, "user_id = ?", userID)
+}
+
+// FindByRoleID 根据角色ID查找用户角色关联
+func (r *AdminUserRoleRepository) FindByRoleID(ctx context.Context, roleID uint64) ([]AdminUserRole, error) {
+	return r.FindByCondition(ctx, "role_id = ?", roleID)
+}
+
+// FindByUserIDAndRoleID 根据用户ID和角色ID查找关联
+func (r *AdminUserRoleRepository) FindByUserIDAndRoleID(ctx context.Context, userID, roleID uint64) (*AdminUserRole, error) {
+	return r.FindOneByCondition(ctx, "user_id = ? AND role_id = ?", userID, roleID)
+}

@@ -1,0 +1,92 @@
+package common
+
+import (
+	"{{.ProjectName}}/internal/taurus"
+	"fmt"
+	"net/http"
+
+	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-common/pkg/templates"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+// BaseController 基础控制器
+// 提供模板渲染、错误处理、响应格式化等通用功能
+type BaseController struct {
+	tpl    *templates.Manager
+	layout string // 布局名称
+}
+
+// BasePageControllerSet Wire依赖注入集合
+var BaseControllerSet = wire.NewSet(NewBaseController)
+
+// NewBasePageController 创建基础页面控制器
+func NewBaseController() *BaseController {
+	return &BaseController{
+		tpl:    taurus.Container.Templates,
+		layout: "admin",
+	}
+}
+
+func (c *BaseController) Response(w http.ResponseWriter, code int, message string, data interface{}) {
+	httpx.CustomJSONResponse(w, map[string]interface{}{
+		"code":    code,
+		"message": message,
+		"data":    data,
+	}, nil)
+}
+
+// ErrorResponse 返回错误响应
+func (c *BaseController) ErrorResponse(w http.ResponseWriter, errorCode int, message string) {
+	c.Response(w, errorCode, message, nil)
+}
+
+// Render 渲染模板
+// templateName: 模板名称 (如 "default/login")
+// data: 传递给模板的数据
+func (c *BaseController) Render(w http.ResponseWriter, templateName string, data interface{}) error {
+
+	if c.tpl == nil {
+		c.ErrorResponse(w, http.StatusInternalServerError, "模板引擎未初始化")
+		return fmt.Errorf("模板引擎未初始化")
+	}
+
+	// 渲染模板
+	content, err := c.tpl.Render(c.layout, templateName, data)
+	if err != nil {
+		c.ErrorResponse(w, http.StatusInternalServerError, "页面渲染失败: "+err.Error())
+		return err
+	}
+	httpx.HTMLResponse(w, content)
+	return nil
+}
+
+// Redirect 重定向
+func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, url string, statusCode int) {
+	httpx.RedirectResponse(w, r, url, statusCode)
+}
+
+// NotFound 返回404页面
+func (c *BaseController) NotFound(w http.ResponseWriter, r *http.Request) {
+	httpx.HTMLResponse(w, "<h1>404 Not Found</h1>")
+}
+
+// GetTemplateManager 获取模板管理器
+func (c *BaseController) GetTemplateManager() *templates.Manager {
+	return c.tpl
+}
+
+// SetTemplateManager 设置模板管理器
+func (c *BaseController) SetTemplateManager(tpl *templates.Manager) {
+	c.tpl = tpl
+}
+
+// GetLayout 获取布局名称
+func (c *BaseController) GetLayout() string {
+	return c.layout
+}
+
+// SetLayout 设置布局名称
+func (c *BaseController) SetLayout(layout string) {
+	c.layout = layout
+}

@@ -1,0 +1,13 @@
+email:
+  username: "${EMAIL_USERNAME:example@example.com}"
+  password: "${EMAIL_PASSWORD:example_password}"
+  connect_timeout: "${EMAIL_CONNECT_TIMEOUT:10}"
+  send_timeout: "${EMAIL_SEND_TIMEOUT:30}"
+  host: "${EMAIL_HOST:smtp.example.com}"
+  port: "${EMAIL_PORT:465}"
+  keep_alive: "${EMAIL_KEEP_ALIVE:true}"
+  encryption: "${EMAIL_ENCRYPTION:2}" # 2: SSL/TLS, 1: STARTTLS
+  auth: "${EMAIL_AUTH:1}"
+  retry_times: "${EMAIL_RETRY_TIMES:3}"
+  retry_interval: "${EMAIL_RETRY_INTERVAL:5}"
+  queue_size: "${EMAIL_QUEUE_SIZE:100}"

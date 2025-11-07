@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+    <!-- 需要额外引入：多选表格组件 -->
+    <script
+      type="text/javascript"
+      src="/static/js/components/my-checkbox-table.js?ts=1761903629"
+    ></script>
+    <!-- 权限详情表格组件 -->
+    <script
+      type="text/javascript"
+      src="/static/js/components/my-permission-detail-table.js"
+    ></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title" v-if="pageType != 'detail'">角色权限管理</div>
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>角色名称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.role_name"
+            :disabled="pageType === 'detail'"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label" align="top">角色权限：</label>
+          <div class="form-control" style="padding: 0; border: none; background-color: transparent;">
+            <my-permission-detail-table 
+              v-if="permissions && permissions.length > 0"
+              :permissions="permissions"
+            ></my-permission-detail-table>
+            <div v-else style="padding: 40px; text-align: center; color: rgba(0,0,0,.45); font-size: 14px;">
+              <span>该角色暂无权限</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 提交 或 返回 -->
+        <!--
+        <div class="btn-group" v-if="pageType != 'detail'">
+          <ui-button
+            color="primary"
+            @click="onSubmit"
+            :disabled="submitBtn.disabled"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">取消</ui-button>
+        </div>
+        -->
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.ROLE_LIST)
+          },
+          form: {
+            role_id: null,
+            role_name: null,
+          },
+          permissions: [], // 权限树数据（包含 checked 字段）
+          pageType: 'detail', // detail:详情页 edit:编辑页
+          // 提交按钮
+          submitBtn: {
+            disabled: false,
+            text: '提交'
+          }
+        },
+        created() {
+          let urlParams = tools.url2Obj(window.location.href);
+          this.form.role_id = urlParams.role_id || null;
+          this.pageType = urlParams.page_type || 'detail';
+          // 通过role_id获取角色信息
+          this.getRoleInfo();
+        },
+        methods: {
+          // 获取角色信息
+          getRoleInfo() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.ROLE.INFO),
+              data: {role_id: this.form.role_id},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  console.log("角色信息: ", JSON.stringify(res.data));
+                  // 设置角色基本信息
+                  NUI.set(this, 'form', {
+                    role_id: res.data.role_id,
+                    role_name: res.data.role_name,
+                  });
+                  // 设置权限树数据（后端已经包含 checked 字段）
+                  NUI.set(this, 'permissions', res.data.permissions || []);
+                } else {
+                  tools.showMsg(res.message || '获取角色信息失败', 0);
+                }
+              },
+              error: (err) => {
+                console.log("获取角色信息失败: ", err);
+                tools.showMsg(err.message || '获取角色信息失败', 0);
+              }
+            });
+          },
+          onSubmit() {
+            // 设置按钮状态 0：按钮置灰不可点击，1：提交按钮立即还原，2：提交按钮2秒后还原(与消息提示框消息时间同步还原)
+            tools.setSubmitBtn(0);
+            tools.ajax('GET', '../../api/search.json', this.form, (data) => {
+              if (data) {
+                // 成功：提示并跳转（封装好的方法）
+                tools.showSuccess(this.url.index);
+                tools.setSubmitBtn(2);
+              } else {
+                tools.setSubmitBtn(1);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          }
+        }
+      });
+    </script>
+
+    <style></style>
+  </body>
+</html>

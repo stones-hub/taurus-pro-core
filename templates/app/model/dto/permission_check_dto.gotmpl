@@ -1,0 +1,17 @@
+package dto
+
+// UserMenuButtonResponse 用户菜单和按钮权限响应
+// 用于前端获取用户有权限的菜单树和按钮权限列表
+type UserMenuButtonResponse struct {
+	Menus   []*FrontendMenuNode `json:"menus"`   // 用户有权限的菜单树（前端格式，与systemMenu结构一致）
+	Buttons []string            `json:"buttons"` // 用户有权限的按钮权限编码列表（permission_type=2）
+}
+
+// FrontendMenuNode 前端菜单节点格式（与home.html中的systemMenu结构一致）
+type FrontendMenuNode struct {
+	Name     string              `json:"name"`           // 菜单名称
+	Mode     []string            `json:"mode"`           // 菜单模式，如['tree']
+	Children []*FrontendMenuNode `json:"children"`       // 子菜单列表
+	Icon     string              `json:"icon,omitempty"` // 图标（可选）
+	Link     string              `json:"link,omitempty"` // 链接（可选，用于叶子节点）
+}

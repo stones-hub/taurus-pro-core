@@ -1,0 +1,89 @@
+package permission
+
+import (
+	"context"
+	"{{.ProjectName}}/app/helper/store"
+	"{{.ProjectName}}/app/model"
+	"time"
+)
+
+// Checker 权限检查器
+type Checker struct {
+	roleService RoleServiceIface
+	cacheTTL    time.Duration // 缓存过期时间
+}
+
+// NewChecker 创建权限检查器
+// 默认缓存过期时间：5 分钟
+func NewChecker(roleService RoleServiceIface) *Checker {
+	return &Checker{
+		roleService: roleService,
+		cacheTTL:    5 * time.Minute, // 默认缓存 5 分钟
+	}
+}
+
+// CheckAPIPermission 检查用户是否有访问指定接口的权限
+// 实现 middleware.PermissionChecker 接口
+// userID: 用户ID
+// apiPath: 接口路径，如 "/admin/user/list"
+// 返回: true表示有权限，false表示无权限，error表示检查过程中出错
+func (c *Checker) CheckAPIPermission(ctx context.Context, userID uint64, apiPath string) (bool, error) {
+	// 1. 尝试从 Redis 缓存获取（使用全局 AuthRedisStore 单例）
+	cacheStore := store.GetAuthRedisStore()
+	cacheItem, err := cacheStore.GetUserPermissionCache(ctx, userID)
+	if err == nil && cacheItem != nil {
+		// 缓存命中，使用缓存数据
+		if cacheItem.IsSuperAdmin {
+			// 超级管理员拥有所有权限
+			return true, nil
+		}
+
+		// 检查用户是否有该接口权限（permission_type=3，且path匹配）
+		for _, perm := range cacheItem.Permissions {
+			if perm.PermissionType == 3 && perm.Path == apiPath && perm.Status == 1 {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}
+
+	// 2. 缓存未命中或已过期，从数据库查询
+	isSuperAdmin, err := c.roleService.IsUserSuperAdmin(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	var userPermissions []model.AdminPermissions
+	if isSuperAdmin {
+		// 超级管理员拥有所有权限
+		// 注意：对于超级管理员，我们不需要缓存所有权限列表，只需要缓存 isSuperAdmin=true
+		userPermissions = []model.AdminPermissions{}
+	} else {
+		// 获取用户所有权限
+		userPermissions, err = c.roleService.GetUserAllPermissions(ctx, userID)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	// 3. 更新 Redis 缓存（忽略错误，不影响权限检查结果）
+	cacheData := &store.UserPermissionCache{
+		IsSuperAdmin: isSuperAdmin,
+		Permissions:  userPermissions,
+	}
+	_ = cacheStore.SetUserPermissionCache(ctx, userID, cacheData, c.cacheTTL)
+
+	// 4. 检查用户是否有该接口权限
+	if isSuperAdmin {
+		return true, nil
+	}
+
+	for _, perm := range userPermissions {
+		if perm.PermissionType == 3 && perm.Path == apiPath && perm.Status == 1 {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}

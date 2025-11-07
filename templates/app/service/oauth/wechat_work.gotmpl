@@ -1,0 +1,180 @@
+package oauth
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"{{.ProjectName}}/app/helper"
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tnet"
+	"github.com/stones-hub/taurus-pro-storage/pkg/redisx"
+)
+
+type WechatWorkProvider struct {
+	redis      *redisx.RedisClient
+	corpID     string
+	corpSecret string
+	tokenURL   string
+	uiURL      string
+	duURL      string
+	key        string
+}
+
+func NewWechatWorkProvider() *WechatWorkProvider {
+	return &WechatWorkProvider{
+		// 延迟初始化：在真正使用时再访问容器，避免 init() 时容器未初始化
+		tokenURL: "https://qyapi.weixin.qq.com/cgi-bin/gettoken",
+		uiURL:    "https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo",
+		duURL:    "https://qyapi.weixin.qq.com/cgi-bin/user/get",
+		key:      "oauth:wechat_work:token",
+	}
+}
+
+// ensureInitialized 懒加载初始化，确保容器已初始化后再访问
+func (p *WechatWorkProvider) ensureInitialized() {
+	if p.redis == nil && taurus.Container != nil {
+		p.redis = taurus.Container.Redis
+		if p.corpID == "" {
+			if taurus.Container.Config != nil {
+				p.corpID = taurus.Container.Config.GetString("oauth.wechat_work.corp_id")
+				p.corpSecret = taurus.Container.Config.GetString("oauth.wechat_work.corp_secret")
+			}
+		}
+	}
+}
+
+func (p *WechatWorkProvider) Name() string { return string(helper.LoginTypeWechatWork) }
+
+type wwGetTokenResp struct {
+	ErrCode     int    `json:"errcode"`
+	ErrMsg      string `json:"errmsg"`
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+}
+
+type wwGetUserInfoResp struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+	UserID  string `json:"UserId"`
+	OpenID  string `json:"OpenId"`
+}
+
+type wwGetUserResp struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+	UserID  string `json:"userid"`
+	Name    string `json:"name"`
+	Mobile  string `json:"mobile"`
+	Email   string `json:"email"`
+	Avatar  string `json:"avatar"`
+	Alias   string `json:"alias"`
+}
+
+// ExchangeCode 基于网页授权登录流程：code -> user/getuserinfo -> user/get（可选）
+// 文档参考：https://developer.work.weixin.qq.com/document/path/91119
+func (p *WechatWorkProvider) ExchangeCode(ctx context.Context, code string) (*OAuthUserInfo, error) {
+	// 懒加载初始化
+	p.ensureInitialized()
+
+	if p.corpID == "" || p.corpSecret == "" {
+		return nil, errors.New("wechat_work config missing: corp_id/corp_secret")
+	}
+	if p.redis == nil {
+		return nil, errors.New("redis client not initialized")
+	}
+
+	// 1) 获取 access_token（带缓存）
+	var tokenResp wwGetTokenResp
+	if cached := p.get(); cached != nil {
+		tokenResp = *cached
+	} else {
+		tokenURL := fmt.Sprintf("%s?corpid=%s&corpsecret=%s", p.tokenURL, p.corpID, p.corpSecret)
+		if body, err := tnet.HttpGetWithDefaultTimeout(tokenURL, nil); err != nil {
+			return nil, err
+		} else if err := json.Unmarshal(body, &tokenResp); err != nil {
+			return nil, err
+		}
+		if tokenResp.ErrCode != 0 || tokenResp.AccessToken == "" {
+			return nil, fmt.Errorf("gettoken failed: %d %s", tokenResp.ErrCode, tokenResp.ErrMsg)
+		}
+		p.set(&tokenResp, time.Duration(tokenResp.ExpiresIn-60)*time.Second)
+	}
+
+	// 2) code换用户标识（UserId 或 OpenId）
+	uiURL := fmt.Sprintf("%s?access_token=%s&code=%s", p.uiURL, tokenResp.AccessToken, code)
+	var ui wwGetUserInfoResp
+	if body, err := tnet.HttpGetWithDefaultTimeout(uiURL, nil); err != nil {
+		return nil, err
+	} else if err := json.Unmarshal(body, &ui); err != nil {
+		return nil, err
+	}
+	if ui.ErrCode != 0 {
+		return nil, fmt.Errorf("getuserinfo failed: %d %s", ui.ErrCode, ui.ErrMsg)
+	}
+
+	info := &OAuthUserInfo{Provider: p.Name()}
+	if ui.UserID != "" {
+		// 内部用户可进一步拉详情（含手机号、邮箱、头像等）
+		duURL := fmt.Sprintf("%s?access_token=%s&userid=%s", p.duURL, tokenResp.AccessToken, ui.UserID)
+		var du wwGetUserResp
+		if body, err := tnet.HttpGetWithDefaultTimeout(duURL, nil); err == nil {
+			_ = json.Unmarshal(body, &du)
+		}
+		if du.ErrCode == 0 {
+			info.Nickname = du.Name
+			info.Mobile = du.Mobile
+			info.Email = du.Email
+			info.AvatarURL = du.Avatar
+			info.ExternalID = du.UserID
+		} else {
+			info.ExternalID = ui.UserID
+		}
+	} else if ui.OpenID != "" {
+		// 外部联系人仅返回 OpenId
+		info.OpenID = ui.OpenID
+		info.ExternalID = ui.OpenID
+	}
+	if info.PrimaryID() == "" {
+		return nil, errors.New("empty user identifier from wechat_work")
+	}
+	return info, nil
+}
+
+// 简易Redis缓存封装（避免重复取 token）
+func (p *WechatWorkProvider) get() *wwGetTokenResp {
+	p.ensureInitialized()
+	if p.redis == nil {
+		return nil
+	}
+	ctx := context.Background()
+	s, err := p.redis.Get(ctx, p.key)
+	if err != nil || s == "" {
+		return nil
+	}
+	var v wwGetTokenResp
+	if json.Unmarshal([]byte(s), &v) == nil {
+		return &v
+	}
+	return nil
+}
+
+func (p *WechatWorkProvider) set(v *wwGetTokenResp, ttl time.Duration) {
+	if v == nil {
+		return
+	}
+	p.ensureInitialized()
+	if p.redis == nil {
+		return
+	}
+	ctx := context.Background()
+	b, _ := json.Marshal(v)
+	_ = p.redis.Set(ctx, p.key, string(b), ttl)
+}
+
+func init() {
+	Register(NewWechatWorkProvider())
+}

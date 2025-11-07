@@ -1,0 +1,49 @@
+package dto
+
+// LoginRequest 登录请求
+type LoginRequest struct {
+	LoginType  string `json:"login_type" binding:"required"`  // 登录类型：mobile、username、wechat_work、dingtalk、feishu
+	LoginValue string `json:"login_value" binding:"required"` // 登录标识：
+	// - username: 账号或手机号
+	// - mobile: 手机号
+	// - wechat_work: 企业微信
+	// - dingtalk: 钉钉
+	// - feishu: 飞书
+	Password string `json:"password"` // username 登录时必填
+	Code     string `json:"code"`     // mobile 登录时必填
+}
+
+// UserInfo 用户信息（与 admin_users 表字段对应）
+type UserInfo struct {
+	UserID        uint64  `json:"user_id"`         // 用户ID
+	Username      string  `json:"username"`        // 用户名
+	Realname      string  `json:"realname"`        // 真实姓名
+	Nickname      string  `json:"nickname"`        // 昵称
+	Avatar        string  `json:"avatar"`          // 头像URL
+	Mobile        *string `json:"mobile"`          // 手机号码（可为NULL）
+	Email         *string `json:"email"`           // 邮箱地址（可为NULL）
+	Gender        int8    `json:"gender"`          // 性别：0未知，1男，2女
+	Birthday      string  `json:"birthday"`        // 生日
+	Position      string  `json:"position"`        // 职位
+	Status        int8    `json:"status"`          // 状态：1启用，0禁用，-1删除
+	UserSource    int8    `json:"user_source"`     // 用户来源：1自主注册，2企业微信同步，3其他SSO
+	LastLoginTime string  `json:"last_login_time"` // 最后登录时间
+	LastLoginIP   string  `json:"last_login_ip"`   // 最后登录IP
+	CreatedAt     string  `json:"created_at"`      // 创建时间
+	UpdatedAt     string  `json:"updated_at"`      // 修改时间
+}
+
+// LoginResponse 登录响应
+type LoginResponse struct {
+	Status  string    `json:"status"`  // 状态：success成功，error失败
+	Message string    `json:"message"` // 状态消息
+	Token   string    `json:"token"`   // JWT令牌（成功时，需要补充信息时为空）
+	User    *UserInfo `json:"user"`    // 用户信息（成功时）
+}
+
+type UserListResponse struct {
+	PageNo      int         `json:"page_no"`      // 当前页码
+	PageSize    int         `json:"page_size"`    // 每页条数
+	ResultTotal int         `json:"result_total"` // 总页数
+	Users       []*UserInfo `json:"users"`
+}

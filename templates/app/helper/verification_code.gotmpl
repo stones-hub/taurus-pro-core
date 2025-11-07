@@ -1,0 +1,247 @@
+package helper
+
+import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"log"
+	"math/big"
+	"strconv"
+	"time"
+
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/util/temail"
+	smail "github.com/xhit/go-simple-mail/v2"
+)
+
+// VerificationCodeManager 验证码管理器
+type VerificationCodeManager struct {
+	emailConfig temail.EmailInfo
+	expires     time.Duration
+}
+
+// NewVerificationCodeManager 创建验证码管理器
+func NewVerificationCodeManager() *VerificationCodeManager {
+	// 从配置中获取邮件配置
+	emailConfig := temail.EmailInfo{
+		Username:       taurus.Container.Config.GetString("email.username"),
+		Password:       taurus.Container.Config.GetString("email.password"),
+		ConnectTimeout: time.Second * 10,
+		SendTimeout:    time.Second * 30,
+		Host:           taurus.Container.Config.GetString("email.host"),
+		Port:           taurus.Container.Config.GetInt("email.port"),
+		KeepAlive:      taurus.Container.Config.GetBool("email.keep_alive"),
+		Encryption:     smail.Encryption(taurus.Container.Config.GetInt("email.encryption")),
+		Auth:           smail.AuthType(taurus.Container.Config.GetInt("email.auth")), // LOGIN
+		RetryTimes:     taurus.Container.Config.GetInt("email.retry_times"),
+		RetryInterval:  time.Second * time.Duration(taurus.Container.Config.GetInt("email.retry_interval")),
+		QueueSize:      taurus.Container.Config.GetInt("email.queue_size"),
+	}
+
+	return &VerificationCodeManager{
+		emailConfig: emailConfig,
+		expires:     time.Minute * 5,
+	}
+}
+
+// GenerateCode 生成6位数字验证码
+func (vcm *VerificationCodeManager) GenerateCode() (string, error) {
+	// 生成6位随机数字
+	code := ""
+	for i := 0; i < 6; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", err
+		}
+		code += strconv.Itoa(int(num.Int64()))
+	}
+	log.Printf("VerificationCodeManager: 生成验证码: %s", code)
+	return code, nil
+}
+
+// SendEmailCode 发送邮箱验证码
+func (vcm *VerificationCodeManager) SendEmailCode(email string) (string, error) {
+	// 生成验证码
+	code, err := vcm.GenerateCode()
+	if err != nil {
+		return "", fmt.Errorf("生成验证码失败: %v", err)
+	}
+
+	// 创建邮件内容
+	content := &temail.EmailContent{
+		From:    vcm.emailConfig.Username,
+		Subject: "验证码",
+		Body:    vcm.generateEmailTemplate(code),
+	}
+
+	// 发送邮件
+	err = temail.SendMail(content, email, vcm.emailConfig)
+	if err != nil {
+		return "", fmt.Errorf("发送邮件失败: %v", err)
+	}
+
+	// 存储验证码到缓存
+	err = vcm.storeCodeToCache("email", email, code)
+	if err != nil {
+		return "", fmt.Errorf("存储验证码失败: %v", err)
+	}
+
+	return code, nil
+}
+
+// SendSMSCode 发送短信验证码（伪代码实现）
+func (vcm *VerificationCodeManager) SendSMSCode(mobile string) (string, error) {
+	// 简单限频：每手机号1分钟最多1次，每小时最多5次
+	ctx := context.Background()
+	keyMinute := fmt.Sprintf("sms:rate:1m:%s", mobile)
+	keyHour := fmt.Sprintf("sms:rate:1h:%s", mobile)
+
+	// 1分钟窗口：检查并计数
+	v1, _ := taurus.Container.Redis.Get(ctx, keyMinute)
+	var countMinute int
+	if v1 != "" {
+		if _, err := fmt.Sscan(v1, &countMinute); err != nil {
+			countMinute = 0
+		}
+	}
+	if countMinute >= 1 {
+		return "", fmt.Errorf("发送过于频繁，请稍后再试")
+	}
+	countMinute = 1
+	_ = taurus.Container.Redis.Set(ctx, keyMinute, fmt.Sprintf("%d", countMinute), time.Minute)
+
+	// 1小时窗口：检查并计数
+	v2, _ := taurus.Container.Redis.Get(ctx, keyHour)
+	var countHour int
+	if v2 != "" {
+		if _, err := fmt.Sscan(v2, &countHour); err != nil {
+			countHour = 0
+		}
+	}
+	if countHour >= 5 {
+		return "", fmt.Errorf("发送次数过多，请稍后再试")
+	}
+	countHour++
+	// 更新计数，每次更新时重置过期时间以确保在最后发送后的1小时内重新计数
+	_ = taurus.Container.Redis.Set(ctx, keyHour, fmt.Sprintf("%d", countHour), time.Hour)
+
+	// 生成验证码
+	code, err := vcm.GenerateCode()
+	if err != nil {
+		return "", fmt.Errorf("生成验证码失败: %v", err)
+	}
+
+	// TODO: 这里后续接入第三方短信服务
+	// 目前只是伪代码，打印到日志
+	fmt.Printf("发送短信验证码到 %s: %s\n", mobile, code)
+
+	// 存储验证码到缓存
+	err = vcm.storeCodeToCache("mobile", mobile, code)
+	if err != nil {
+		return "", fmt.Errorf("存储验证码失败: %v", err)
+	}
+
+	return code, nil
+}
+
+// VerifyCode 验证验证码
+func (vcm *VerificationCodeManager) VerifyCode(loginType, loginValue, inputCode string) (bool, error) {
+	// 从缓存中获取验证码
+	cachedCode, err := vcm.getCodeFromCache(loginType, loginValue)
+	if err != nil {
+		return false, fmt.Errorf("获取验证码失败: %v", err)
+	}
+
+	if cachedCode == "" {
+		return false, fmt.Errorf("验证码不存在或已过期")
+	}
+
+	// 验证码比对
+	if cachedCode != inputCode {
+		return false, fmt.Errorf("验证码错误")
+	}
+
+	// 验证成功后删除验证码
+	err = vcm.deleteCodeFromCache(loginType, loginValue)
+	if err != nil {
+		// 删除失败不影响验证结果，只记录日志
+		fmt.Printf("删除验证码失败: %v\n", err)
+	}
+
+	return true, nil
+}
+
+// generateEmailTemplate 生成邮件模板
+func (vcm *VerificationCodeManager) generateEmailTemplate(code string) string {
+	return fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>验证码</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2c3e50;">验证码</h2>
+        <p>您的验证码是：</p>
+        <div style="background-color: #f8f9fa; border: 2px solid #e9ecef; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; color: #007bff; letter-spacing: 5px;">%s</span>
+        </div>
+        <p style="color: #6c757d; font-size: 14px;">
+            验证码有效期为5分钟，请及时使用。<br>
+            如果这不是您的操作，请忽略此邮件。
+        </p>
+        <hr style="border: none; border-top: 1px solid #e9ecef; margin: 30px 0;">
+        <p style="color: #6c757d; font-size: 12px; text-align: center;">
+            此邮件由系统自动发送，请勿回复。
+        </p>
+    </div>
+</body>
+</html>
+`, code)
+}
+
+// storeCodeToCache 存储验证码到缓存
+func (vcm *VerificationCodeManager) storeCodeToCache(loginType, loginValue, code string) error {
+	// 使用 Redis 存储验证码，过期时间5分钟
+	key := fmt.Sprintf("verification_code:%s:%s", loginType, loginValue)
+	expiration := vcm.expires
+
+	ctx := context.Background()
+	err := taurus.Container.Redis.Set(ctx, key, code, expiration)
+	if err != nil {
+		return fmt.Errorf("存储验证码到Redis失败: %v", err)
+	}
+
+	fmt.Printf("存储验证码到Redis: %s -> %s (过期时间: %v)\n", key, code, expiration)
+	return nil
+}
+
+// getCodeFromCache 从缓存中获取验证码
+func (vcm *VerificationCodeManager) getCodeFromCache(loginType, loginValue string) (string, error) {
+	key := fmt.Sprintf("verification_code:%s:%s", loginType, loginValue)
+
+	ctx := context.Background()
+	code, err := taurus.Container.Redis.Get(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("从Redis获取验证码失败: %v", err)
+	}
+
+	fmt.Printf("从Redis获取验证码: %s -> %s\n", key, code)
+	return code, nil
+}
+
+// deleteCodeFromCache 从缓存中删除验证码
+func (vcm *VerificationCodeManager) deleteCodeFromCache(loginType, loginValue string) error {
+	key := fmt.Sprintf("verification_code:%s:%s", loginType, loginValue)
+
+	ctx := context.Background()
+	err := taurus.Container.Redis.Del(ctx, key)
+	if err != nil {
+		return fmt.Errorf("从Redis删除验证码失败: %v", err)
+	}
+
+	fmt.Printf("从Redis删除验证码: %s\n", key)
+	return nil
+}

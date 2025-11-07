@@ -1,0 +1,78 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminPermissions 权限表
+type AdminPermissions struct {
+	PermissionID   uint64    `json:"permission_id" gorm:"primaryKey;autoIncrement;column:permission_id;comment:权限ID"`                                     // 权限ID
+	ParentID       uint64    `json:"parent_id" gorm:"index:idx_parent_id;not null;default:0;column:parent_id;comment:父权限ID"`                              // 父权限ID
+	PermissionName string    `json:"permission_name" gorm:"size:100;not null;column:permission_name;comment:权限名称"`                                        // 权限名称
+	PermissionCode string    `json:"permission_code" gorm:"uniqueIndex:uk_permission_code;size:100;not null;column:permission_code;comment:权限编码"`         // 权限编码
+	PermissionType int8      `json:"permission_type" gorm:"index:idx_permission_type;not null;default:1;column:permission_type;comment:权限类型：1菜单，2按钮，3接口"` // 权限类型：1菜单，2按钮，3接口
+	Path           string    `json:"path" gorm:"size:255;not null;default:'';column:path;comment:路径"`                                                     // 路径
+	Icon           string    `json:"icon" gorm:"size:100;not null;default:'';column:icon;comment:图标"`                                                     // 图标
+	SortOrder      int       `json:"sort_order" gorm:"not null;default:0;column:sort_order;comment:排序"`                                                   // 排序
+	Status         int8      `json:"status" gorm:"index:idx_status;not null;default:1;column:status;comment:状态：1启用，0禁用"`                                  // 状态：1启用，0禁用
+	IsSystem       int8      `json:"is_system" gorm:"not null;default:0;column:is_system;comment:是否系统权限：1是，0否"`                                           // 是否系统权限：1是，0否
+	CreatedAt      time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                                 // 创建时间
+	UpdatedAt      time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"`     // 修改时间
+}
+
+// TableName 指定表名
+func (AdminPermissions) TableName() string {
+	return "admin_permissions"
+}
+
+func (AdminPermissions) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminPermissionsRepository struct {
+	dao.Repository[AdminPermissions]
+}
+
+func NewAdminPermissionsRepository() *AdminPermissionsRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminPermissions]()
+	if err != nil {
+		panic("创建AdminPermissionsRepository失败: " + err.Error())
+	}
+	return &AdminPermissionsRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminPermissionsRepositoryWithDB(db *gorm.DB) *AdminPermissionsRepository {
+	repo := dao.NewBaseRepository[AdminPermissions](db)
+	return &AdminPermissionsRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminPermissionsRepository) GetDB() *gorm.DB {
+	return (&AdminPermissions{}).DB()
+}
+
+// FindByPermissionID 根据权限ID查找权限
+func (r *AdminPermissionsRepository) FindByPermissionID(ctx context.Context, permissionID uint64) (*AdminPermissions, error) {
+	return r.FindOneByCondition(ctx, "permission_id = ?", permissionID)
+}
+
+// FindByPermissionCode 根据权限编码查找权限
+func (r *AdminPermissionsRepository) FindByPermissionCode(ctx context.Context, permissionCode string) (*AdminPermissions, error) {
+	return r.FindOneByCondition(ctx, "permission_code = ?", permissionCode)
+}

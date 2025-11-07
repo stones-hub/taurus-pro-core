@@ -1,0 +1,35 @@
+package helper
+
+// 定义系统的业务行为所有错误码 (非http状态码)
+const (
+	CodeSuccess             = 0 // 成功
+	CodeError               = 1 // 错误
+	CodeInvalidParams       = 2 // 参数错误
+	CodeUnauthorized        = 3 // 未授权
+	CodeForbidden           = 4 // 禁止访问
+	CodeNotFound            = 5 // 未找到
+	CodeInternalServerError = 6 // 内部服务器错误
+	CodeBadRequest          = 7 // 请求错误
+	CodeUnprocessableEntity = 8 // 不可处理实体
+	CodeTooManyRequests     = 9 // 请求过多
+)
+
+const (
+	UserStatusEnabled         = 1 // 用户状态：启用
+	UserStatusDisabled        = 0 // 用户状态：禁用
+	LoginMethodStatusEnabled  = 1 // 登录方式状态：启用
+	LoginMethodStatusDisabled = 0 // 登录方式状态：禁用
+	UserSourceSelfRegistered  = 1 // 用户来源：自主注册
+	UserSourceThirdParty      = 2 // 用户来源：第三方登录
+)
+
+// 定义登录类型
+type LoginType string
+
+const (
+	LoginTypeMobile     LoginType = "mobile"      // 手机号验证码登录
+	LoginTypeUsername   LoginType = "username"    // 用户名密码登录（username = mobile）
+	LoginTypeWechatWork LoginType = "wechat_work" // 企业微信登录
+	LoginTypeDingTalk   LoginType = "dingtalk"    // 钉钉登录
+	LoginTypeFeishu     LoginType = "feishu"      // 飞书登录
+)

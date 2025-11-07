@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"{{.ProjectName}}/app"
+	"{{.ProjectName}}/app/helper/permission"
 	"{{.ProjectName}}/internal/taurus"
 
 	tmid "{{.ProjectName}}/pkg/middleware"
@@ -19,10 +21,13 @@ import (
 
 func main() {
 	setGlobalTimezone()
+	// 初始化权限服务依赖（必须在注册路由之前，因为路由可能使用权限中间件）
+	permissionDependency()
 	pprof()
 	userRoutes()
 	authRoutes()
-
+	staticRoutes()
+	adminRoutes()
 	taurus.Container.Http.AddRouter(router.Router{
 		Path:    "/home",
 		Handler: http.HandlerFunc(app.Core.IndexController.Home),
@@ -78,8 +83,6 @@ func pprof() {
 	})
 }
 
-
-
 // setGlobalTimezone 设置全局时区为上海时区
 func setGlobalTimezone() {
 	// 加载上海时区
@@ -96,6 +99,19 @@ func setGlobalTimezone() {
 	log.Printf("📅 当前时间: %s", time.Now().Format("2006-01-02 15:04:05 MST"))
 }
 
+// permissionDependency 初始化权限服务依赖
+// 在 main 函数中调用，确保 app.Core 已经创建（在 app/bootstrap.go 的 init() 中创建）
+func permissionDependency() {
+	if app.Core != nil && app.Core.AdminRoleService != nil {
+		// 创建权限检查器（permission.Checker 实现了 middleware.PermissionChecker 接口）
+		checker := permission.NewChecker(app.Core.AdminRoleService)
+		// 注入到 middleware
+		tmid.SetPermissionChecker(checker)
+		log.Println("✅ 权限服务依赖注入成功")
+	} else {
+		log.Fatal("❌ Core 或 AdminRoleService 未初始化，权限服务依赖注入失败")
+	}
+}
 
 // userRoutes 注册所有User Controller的路由
 func userRoutes() {
@@ -414,6 +430,341 @@ func authRoutes() {
 			}),
 			// 添加JWT中间件验证
 			tmid.JWTMiddleware(),
+		},
+	})
+}
+
+func staticRoutes() {
+	// 静态文件路由 - CSS, JS, 图片等
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/static/",
+		Handler: http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 添加下载文件路由
+	taurus.Container.Http.AddRouter(router.Router{
+		Path:    "/downloads/",
+		Handler: http.StripPrefix("/downloads/", http.FileServer(http.Dir("downloads/"))),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+	// 添加管理员模板路由 - 统一处理 /admin/ 和 /admin/tpl/
+	taurus.Container.Http.AddRouter(router.Router{
+		Path: "/admin/",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println("r.URL.Path", r.URL.Path)
+			// 处理根路径：/admin 或 /admin/ 或 /admin/tpl 或 /admin/tpl/
+			if r.URL.Path == "/admin" || r.URL.Path == "/admin/" ||
+				r.URL.Path == "/admin/tpl" || r.URL.Path == "/admin/tpl/" {
+				http.ServeFile(w, r, "templates/admin/login.html")
+				return
+			}
+
+			// 处理 /admin/tpl/* 的模板文件 - 必须是以 /admin/tpl/ 开头的路径
+			if strings.HasPrefix(r.URL.Path, "/admin/tpl/") && len(r.URL.Path) > len("/admin/tpl/") {
+				http.StripPrefix("/admin/tpl/", http.FileServer(http.Dir("templates/admin/"))).ServeHTTP(w, r)
+				return
+			}
+
+			// 其他情况返回 404
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("404 Not Found"))
+		}),
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+	})
+
+}
+
+func adminRoutes() {
+	// 用户管理路由 - 不需要JWT验证的接口
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/user",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+		},
+		Routes: []router.Router{
+			// 用户登录接口
+			{
+				Path:    "/login",
+				Handler: http.HandlerFunc(app.Core.UserApiController.Login),
+			},
+			// 发送验证码接口
+			{
+				Path:    "/send-code",
+				Handler: http.HandlerFunc(app.Core.UserApiController.SendCode),
+			},
+			// OAuth初始化接口（生成state/nonce）
+			{
+				Path:    "/oauth-init",
+				Handler: http.HandlerFunc(app.Core.UserApiController.OAuthInit),
+			},
+		},
+	})
+
+	// 用户管理路由 - 需要JWT验证的接口（基础功能，不需要权限校验）
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/user",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加JWT中间件验证
+			tmid.JWTMiddleware(),
+			tmid.PasswordChangeValidatorMiddleware(),
+			// 添加CSRF中间件验证（在JWT之后，仅对POST/PUT/DELETE等修改数据的请求生效）
+			tmid.CSRFMiddleware(),
+		},
+		Routes: []router.Router{
+			// 用户登出接口
+			{
+				Path:    "/logout",
+				Handler: http.HandlerFunc(app.Core.UserApiController.Logout),
+			},
+			// 获取当前用户信息
+			{
+				Path:    "/current-info",
+				Handler: http.HandlerFunc(app.Core.UserApiController.GetCurrentUserInfo),
+			},
+			// 更新当前用户个人信息（自己改自己的信息，不需要权限校验）
+			{
+				Path:    "/update-profile",
+				Handler: http.HandlerFunc(app.Core.UserApiController.UpdateCurrentUserProfile),
+			},
+			// 获取用户菜单和按钮权限
+			{
+				Path:    "/menus-buttons",
+				Handler: http.HandlerFunc(app.Core.UserApiController.GetUserMenusAndButtons),
+			},
+		},
+	})
+
+	// 用户管理路由 - 需要JWT验证和权限校验的接口（管理功能）
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/user",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			// 添加JWT中间件验证
+			tmid.JWTMiddleware(),
+			tmid.PasswordChangeValidatorMiddleware(),
+			// 添加权限校验中间件（在JWT之后，CSRF之前）
+			tmid.PermissionMiddleware(),
+			// 添加CSRF中间件验证（在JWT之后，仅对POST/PUT/DELETE等修改数据的请求生效）
+			tmid.CSRFMiddleware(),
+		},
+		Routes: []router.Router{
+			// 获取用户列表
+			{
+				Path:    "/list",
+				Handler: http.HandlerFunc(app.Core.UserApiController.GetUserList),
+			},
+			// 更新用户状态
+			{
+				Path:    "/update-status",
+				Handler: http.HandlerFunc(app.Core.UserApiController.UpdateUserStatus),
+			},
+			// 获取用户信息
+			{
+				Path:    "/info",
+				Handler: http.HandlerFunc(app.Core.UserApiController.GetUserInfo),
+			},
+			// 设置/重置密码
+			{
+				Path:    "/set-password",
+				Handler: http.HandlerFunc(app.Core.UserApiController.SetPassword),
+			},
+			// 删除用户
+			{
+				Path:    "/delete",
+				Handler: http.HandlerFunc(app.Core.UserApiController.DeleteUser),
+			},
+			// 更新用户
+			{
+				Path:    "/update",
+				Handler: http.HandlerFunc(app.Core.UserApiController.UpdateUser),
+			},
+			// 新增用户
+			{
+				Path:    "/add",
+				Handler: http.HandlerFunc(app.Core.UserApiController.AddUser),
+			},
+
+			// 修改密码（自己改自己的密码，不需要权限校验）
+			{
+				Path:    "/change-password",
+				Handler: http.HandlerFunc(app.Core.UserApiController.ChangePassword),
+			},
+			// 绑定手机号（自己绑定，不需要权限校验）
+			{
+				Path:    "/bind-mobile",
+				Handler: http.HandlerFunc(app.Core.UserApiController.BindMobile),
+			},
+			// 解绑手机号（自己解绑，不需要权限校验）
+			{
+				Path:    "/unbind-mobile",
+				Handler: http.HandlerFunc(app.Core.UserApiController.UnbindMobile),
+			},
+		},
+	})
+
+	// 角色管理路由 - 需要JWT验证和权限校验的接口
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/role",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			tmid.JWTMiddleware(),
+			tmid.PasswordChangeValidatorMiddleware(),
+			// 添加权限校验中间件（在JWT之后，CSRF之前）
+			tmid.PermissionMiddleware(),
+			tmid.CSRFMiddleware(),
+		},
+		Routes: []router.Router{
+			// 获取用户角色和权限
+			{
+				Path:    "/get-user-role-permissions",
+				Handler: http.HandlerFunc(app.Core.RoleController.GetUserRolesAndPermissions),
+			},
+			// 获取角色列表
+			{
+				Path:    "/list",
+				Handler: http.HandlerFunc(app.Core.RoleController.GetRoleList),
+			},
+			// 获取角色详情
+			{
+				Path:    "/detail",
+				Handler: http.HandlerFunc(app.Core.RoleController.GetRoleDetail),
+			},
+			// 更新角色状态
+			{
+				Path:    "/update-status",
+				Handler: http.HandlerFunc(app.Core.RoleController.UpdateRoleStatus),
+			},
+			// 删除角色
+			{
+				Path:    "/delete",
+				Handler: http.HandlerFunc(app.Core.RoleController.DeleteRole),
+			},
+			// 编辑角色信息
+			{
+				Path:    "/edit-info",
+				Handler: http.HandlerFunc(app.Core.RoleController.GetEditRoleInfo),
+			},
+			// 更新角色
+			{
+				Path:    "/update",
+				Handler: http.HandlerFunc(app.Core.RoleController.UpdateRole),
+			},
+			// 更新是否系统角色
+			{
+				Path:    "/update-is-system",
+				Handler: http.HandlerFunc(app.Core.RoleController.UpdateRoleIsSystem),
+			},
+			// 新增角色
+			{
+				Path:    "/add",
+				Handler: http.HandlerFunc(app.Core.RoleController.AddRole),
+			},
+			// 获取所有权限（用于新增角色）
+			{
+				Path:    "/get-all-permissions",
+				Handler: http.HandlerFunc(app.Core.RoleController.GetAllPermissions),
+			},
+		},
+	})
+
+	// 权限管理路由 - 需要JWT验证和权限校验的接口
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/permission",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			tmid.JWTMiddleware(),
+			tmid.PasswordChangeValidatorMiddleware(),
+			// 添加权限校验中间件（在JWT之后，CSRF之前）
+			tmid.PermissionMiddleware(),
+			tmid.CSRFMiddleware(),
+		},
+		Routes: []router.Router{
+			// 获取权限列表
+			{
+				Path:    "/list",
+				Handler: http.HandlerFunc(app.Core.PermissionController.GetPermissionList),
+			},
+			// 新增权限
+			{
+				Path:    "/add",
+				Handler: http.HandlerFunc(app.Core.PermissionController.AddPermission),
+			},
+			// 更新权限
+			{
+				Path:    "/update",
+				Handler: http.HandlerFunc(app.Core.PermissionController.UpdatePermission),
+			},
+			// 删除权限
+			{
+				Path:    "/delete",
+				Handler: http.HandlerFunc(app.Core.PermissionController.DeletePermission),
+			},
+			// 更新权限状态
+			{
+				Path:    "/update-status",
+				Handler: http.HandlerFunc(app.Core.PermissionController.UpdatePermissionStatus),
+			},
+			{
+				Path:    "/update-is-system",
+				Handler: http.HandlerFunc(app.Core.PermissionController.UpdatePermissionIsSystem),
+			},
+			// 获取编辑权限信息
+			{
+				Path:    "/edit-info",
+				Handler: http.HandlerFunc(app.Core.PermissionController.GetEditPermissionInfo),
+			},
+			// 获取权限树
+			{
+				Path:    "/get-tree",
+				Handler: http.HandlerFunc(app.Core.PermissionController.GetPermissionTree),
+			},
+		},
+	})
+
+	// 登录日志管理路由 - 需要JWT验证和权限校验的接口
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/login-log",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			tmid.JWTMiddleware(),
+			tmid.PasswordChangeValidatorMiddleware(),
+			// 添加权限校验中间件（在JWT之后，CSRF之前）
+			tmid.PermissionMiddleware(),
+			tmid.CSRFMiddleware(),
+		},
+		Routes: []router.Router{
+			// 获取登录日志列表
+			{
+				Path:    "/list",
+				Handler: http.HandlerFunc(app.Core.LogApiController.LoginLogList),
+			},
 		},
 	})
 }

@@ -1,0 +1,4 @@
+wechat_work:
+  corp_id: "${WECHAT_WORK_CORP_ID:123456}"
+  corp_secret: "${WECHAT_WORK_CORP_SECRET:123456}"
+  agent_id: "${WECHAT_WORK_AGENT_ID:123456}"

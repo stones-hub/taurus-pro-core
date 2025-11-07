@@ -1,0 +1,112 @@
+package api
+
+import (
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"{{.ProjectName}}/app/controller/admin/common"
+	"{{.ProjectName}}/app/helper"
+	"{{.ProjectName}}/app/model/dto"
+	"{{.ProjectName}}/app/service"
+
+	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tmap"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+type LogApiController struct {
+	*common.BaseController
+	AdminLoginLogService *service.AdminLoginLogService
+	AdminAuthService     *service.AdminAuthService
+}
+
+var LogApiControllerSet = wire.NewSet(wire.Struct(new(LogApiController), "*"))
+
+// LoginLogList 获取登录日志列表接口（需登录）
+func (c *LogApiController) LoginLogList(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息 (TODO: 校验权限是否足够)
+	// 注意：currentUserIDFromJWT 函数在 user_controller.go 中已定义，可以直接使用
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 获取分页参数和筛选条件
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	pageNo := tmap.GetInt(body, "page_no", 1)                                     // 当前页码
+	pageSize := tmap.GetInt(body, "page_size", 15)                                // 每页条数
+	loginStatusStr := strings.TrimSpace(tmap.GetString(body, "login_status", "")) // 登录状态（字符串：'0'失败，'1'成功，''不过滤）
+
+	// 4. 构建查询参数
+	var loginStatus *int8
+	if loginStatusStr != "" {
+		statusInt, err := strconv.ParseInt(loginStatusStr, 10, 8)
+		if err != nil || (statusInt != 0 && statusInt != 1) {
+			c.ErrorResponse(w, helper.CodeInvalidParams, "登录状态参数错误，必须为0或1")
+			return
+		}
+		status := int8(statusInt)
+		loginStatus = &status
+	}
+
+	// 构建查询参数
+	queryParams := service.LoginLogQueryParams{
+		LoginStatus: loginStatus,
+		Page:        pageNo,
+		PageSize:    pageSize,
+	}
+
+	// 5. 调用服务层查询日志
+	logs, total, err := c.AdminLoginLogService.QueryLogs(r.Context(), queryParams)
+	if err != nil {
+		log.Printf("获取登录日志列表失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "获取登录日志列表失败: "+err.Error())
+		return
+	}
+
+	// 6. 转换为响应格式
+	list := make([]*dto.LoginLogListItem, 0, len(logs))
+	for _, logItem := range logs {
+		// 获取用户信息
+		username := "未知用户"
+		user, err := c.AdminAuthService.GetUserInfo(r.Context(), logItem.UserID)
+		if err != nil {
+			username = "未知用户"
+		} else {
+			username = user.Username
+		}
+		list = append(list, &dto.LoginLogListItem{
+			LogID:         logItem.LogID,
+			UserID:        logItem.UserID,
+			Username:      username,
+			LoginType:     logItem.LoginType,
+			LoginIP:       logItem.LoginIP,
+			UserAgent:     logItem.UserAgent,
+			LoginStatus:   dto.LoginStatusToString(logItem.LoginStatus),
+			FailureReason: logItem.FailureReason,
+			LoginTime:     logItem.LoginTime.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	// 7. 返回响应
+	c.Response(w, helper.CodeSuccess, "获取登录日志列表成功", dto.LoginLogListResponse{
+		PageNo:      pageNo,
+		PageSize:    pageSize,
+		ResultTotal: total,
+		List:        list,
+	})
+}

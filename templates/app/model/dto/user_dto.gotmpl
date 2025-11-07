@@ -1,0 +1,88 @@
+package dto
+
+import (
+	"encoding/json"
+	"strconv"
+)
+
+type UpdateUserRequest struct {
+	UserID   uint64        `json:"user_id"`  // 用户ID
+	Realname string        `json:"realname"` // 真实姓名
+	Nickname string        `json:"nickname"` // 昵称
+	Gender   int8          `json:"gender"`   // 性别
+	Birthday string        `json:"birthday"` // 生日
+	Email    string        `json:"email"`    // 邮箱
+	RoleIDs  []interface{} `json:"role_ids"` // 角色ID数组
+}
+
+// 当调用 json.Unmarshal(data, &updateUser) 时：
+// 1. Go 会检查 UpdateUserRequest 是否实现了 UnmarshalJSON
+// 2. 如果实现了，就会调用这个自定义方法
+// 3. 而不是使用默认的反射机制来解析 JSON
+// UnmarshalJSON 自定义JSON反序列化，支持gender字段可以是字符串或整数
+func (u *UpdateUserRequest) UnmarshalJSON(data []byte) error {
+	// 使用临时结构体来接收原始JSON
+	var temp struct {
+		UserID   uint64        `json:"user_id"`
+		Realname string        `json:"realname"`
+		Nickname string        `json:"nickname"`
+		Gender   interface{}   `json:"gender"` // 使用interface{}来接受字符串或整数
+		Birthday string        `json:"birthday"`
+		Email    string        `json:"email"`
+		RoleIDs  []interface{} `json:"role_ids"`
+	}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// 赋值基本字段
+	u.UserID = temp.UserID
+	u.Realname = temp.Realname
+	u.Nickname = temp.Nickname
+	u.Birthday = temp.Birthday
+	u.Email = temp.Email
+	u.RoleIDs = temp.RoleIDs
+
+	// 处理Gender字段：支持字符串或整数
+	switch v := temp.Gender.(type) {
+	case string:
+		// 如果是字符串，转换为int8
+		genderInt, err := strconv.ParseInt(v, 10, 8)
+		if err != nil {
+			// 解析失败，默认为0
+			u.Gender = 0
+		} else {
+			u.Gender = int8(genderInt)
+		}
+	case float64:
+		// JSON数字默认解析为float64
+		u.Gender = int8(v)
+	case int64:
+		u.Gender = int8(v)
+	case int:
+		u.Gender = int8(v)
+	case int8:
+		u.Gender = v
+	default:
+		// 其他类型或nil，默认为0
+		u.Gender = 0
+	}
+
+	return nil
+}
+
+// AddUserRequest 新增用户请求
+type AddUserRequest struct {
+	Username   string        `json:"username"`    // 用户名
+	Password   string        `json:"password"`    // 密码
+	Mobile     string        `json:"mobile"`      // 手机号
+	Realname   string        `json:"realname"`    // 真实姓名
+	Nickname   string        `json:"nickname"`    // 昵称
+	Avatar     string        `json:"avatar"`      // 头像
+	Email      string        `json:"email"`       // 邮箱
+	Gender     int8          `json:"gender"`      // 性别：0未知，1男，2女
+	Birthday   string        `json:"birthday"`    // 生日
+	UserSource int8          `json:"user_source"` // 用户来源：1自主注册，2第三方登录, 3. 管理员创建
+	RoleIDs    []interface{} `json:"role_ids"`    // 角色ID数组
+}

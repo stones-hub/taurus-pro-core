@@ -1,0 +1,89 @@
+package helper
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tvalid"
+)
+
+// NormalizeString 去空格
+func NormalizeString(s string) string { return strings.TrimSpace(s) }
+
+// NormalizeMobile 手机号归一化（可扩展区号/格式）
+func NormalizeMobile(m string) string { return strings.TrimSpace(m) }
+
+// NormalizeProvider 第三方登录方式归一化
+func NormalizeProvider(p string) string { return strings.TrimSpace(p) }
+
+// VerifySMS 使用验证码管理器进行一次性校验
+func VerifySMS(vcm *VerificationCodeManager, mobile, code string) bool {
+	ok, err := vcm.VerifyCode("mobile", mobile, code)
+	return err == nil && ok
+}
+
+// IsUniqueConflictMySQL 判断是否为唯一键冲突（简化版）
+func IsUniqueConflictMySQL(err error) bool {
+	if err == nil {
+		return false
+	}
+	e := strings.ToLower(err.Error())
+	return strings.Contains(e, "duplicate") || strings.Contains(e, "1062")
+}
+
+// ValidatePassword 验证密码（别名）
+func ValidatePassword(password string) error { return ValidatePasswordStrength(password) }
+
+// ValidatePasswordStrength 验证密码强度
+func ValidatePasswordStrength(password string) error {
+	if len(password) < 6 {
+		return fmt.Errorf("密码长度不能少于6位")
+	}
+	if len(password) > 20 {
+		return fmt.Errorf("密码长度不能超过20位")
+	}
+
+	// 检查是否包含数字
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
+	// 检查是否包含字母
+	hasLetter := regexp.MustCompile(`[a-zA-Z]`).MatchString(password)
+
+	if !hasNumber || !hasLetter {
+		return fmt.Errorf("密码必须包含字母和数字")
+	}
+
+	return nil
+}
+
+// ValidateMobile 验证手机号格式
+func ValidateMobile(mobile string) bool { return tvalid.IsValidPhone(mobile) }
+
+// ValidateEmail 验证邮箱格式
+func ValidateEmail(email string) error { return tvalid.ValidateEmailFormat(email) }
+
+// IsPasswordLogin 判断是否为密码登录
+func IsPasswordLogin(loginType LoginType) bool { return loginType == LoginTypeUsername }
+
+// IsCodeLogin 判断是否为验证码登录
+func IsCodeLogin(loginType LoginType) bool { return loginType == LoginTypeMobile }
+
+// IsThirdPartyLogin 判断是否为第三方登录 (当前支持企业微信登录)
+func IsThirdPartyLogin(loginType LoginType) bool {
+	switch loginType {
+	case LoginTypeWechatWork, LoginTypeDingTalk, LoginTypeFeishu:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidateLoginType 验证登录类型
+func ValidateLoginType(loginType LoginType) bool {
+	switch loginType {
+	case LoginTypeMobile, LoginTypeUsername, LoginTypeWechatWork, LoginTypeDingTalk, LoginTypeFeishu:
+		return true
+	default:
+		return false
+	}
+}

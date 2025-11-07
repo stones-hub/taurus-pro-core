@@ -1,0 +1,33 @@
+package model
+
+import (
+	"{{.ProjectName}}/internal/taurus"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// TxnAnchor 虚拟实体：仅用于承载事务（数据库中无此表）
+type TxnAnchor struct{}
+
+func (TxnAnchor) TableName() string { return "txn_anchor" }
+
+func (TxnAnchor) DB() *gorm.DB {
+	if db, ok := taurus.Container.DbList["default"]; ok {
+		return db
+	}
+	for _, d := range taurus.Container.DbList {
+		return d
+	}
+	return nil
+}
+
+type TxnAnchorRepository struct{ dao.Repository[TxnAnchor] }
+
+func NewTxnAnchorRepository() *TxnAnchorRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[TxnAnchor]()
+	if err != nil {
+		panic("创建TxnAnchorRepository失败: " + err.Error())
+	}
+	return &TxnAnchorRepository{Repository: repo}
+}

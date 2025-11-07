@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">{{isEdit ? '编辑权限' : '新增权限'}}</div>
+
+      <!-- 必填选项 -->
+      <div class="form-section-divider">
+        <span class="divider-text">必填选项</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>权限名称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入权限名称"
+            v-model="form.permission_name"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>权限编码：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入权限编码（必须唯一）"
+            v-model="form.permission_code"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>权限类型：</label>
+          <ui-select
+            placeholder="请选择权限类型"
+            v-model="form.permission_type"
+            :options="select.permission_type"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-select>
+        </div>
+
+        <div class="form-group ui-grid-cell col-16">
+          <label class="control-label">父权限：</label>
+          <ui-select
+            placeholder="请选择父权限（留空表示根权限）"
+            v-model="form.parent_id"
+            :options="parentPermissionOptions"
+            clearable
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-select>
+        </div>
+      </div>
+
+      <!-- 非必填选项 -->
+      <div class="form-section-divider">
+        <span class="divider-text">非必填选项，请按需填写</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">路径：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入路径"
+            v-model="form.path"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">图标：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入图标名称或类名"
+            v-model="form.icon"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-4">
+          <label class="control-label">排序：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入排序值"
+            v-model="form.sort_order"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-4">
+          <label class="control-label">状态：</label>
+          <ui-select
+            placeholder="请选择状态"
+            v-model="form.status"
+            :options="select.status"
+            :disabled="isEdit && form.is_system == 1"
+          ></ui-select>
+        </div>
+      </div>
+
+      <!-- 提交 或 返回 -->
+      <div class="my-form ui-grid">
+        <div class="btn-group">
+          <ui-button
+            v-if="isEdit ? app.hasButtonPermission('system.account.permission.edit') : app.hasButtonPermission('system.account.permission.add')"
+            color="primary"
+            @click="onSubmit"
+            :disabled="submitBtn.disabled"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">取消</ui-button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.PERMISSION.PERMISSION_LIST)
+          },
+          isEdit: false, // 是否为编辑模式
+          form: {
+            permission_id: 0, // 权限ID（编辑时使用）
+            parent_id: 0, // 父权限ID
+            permission_name: '', // 权限名称
+            permission_code: '', // 权限编码
+            permission_type: '', // 权限类型：1菜单，2按钮，3接口
+            path: '', // 路径
+            icon: '', // 图标
+            sort_order: 0, // 排序
+            status: 1, // 状态：1启用，0禁用
+            is_system: 0 // 是否系统权限：1是，0否（编辑时从服务器获取）
+          },
+          permissionTree: [], // 权限树数据（用于选择父权限）
+          select: {
+            status: [
+              {label: '启用', value: 1},
+              {label: '禁用', value: 0}
+            ],
+            permission_type: [
+              {label: '菜单', value: 1},
+              {label: '按钮', value: 2},
+              {label: '接口', value: 3}
+            ]
+          },
+          // 提交按钮
+          submitBtn: {
+            disabled: false,
+            text: '提交'
+          }
+        },
+        computed: {
+          // 将权限树转换为下拉选项
+          parentPermissionOptions: function() {
+            var options = [
+              {label: '根权限（无父权限）', value: 0}
+            ];
+            var self = this;
+            
+            function buildOptions(tree, prefix) {
+              if (!tree || tree.length === 0) {
+                return;
+              }
+              for (var i = 0; i < tree.length; i++) {
+                var node = tree[i];
+                var label = prefix + node.permission_name + ' (' + node.permission_code + ')';
+                options.push({
+                  label: label,
+                  value: node.permission_id
+                });
+                if (node.children && node.children.length > 0) {
+                  buildOptions(node.children, prefix + '  ');
+                }
+              }
+            }
+            
+            buildOptions(this.permissionTree, '');
+            return options;
+          }
+        },
+        created() {
+          // 检查URL参数，判断是新增还是编辑
+          let urlParams = tools.url2Obj(window.location.href);
+          if (urlParams.permission_id) {
+            this.isEdit = true;
+            this.form.permission_id = parseInt(urlParams.permission_id);
+            this.loadEditData();
+          } else {
+            // 新增模式下，初始不传递权限类型（显示所有权限树）
+            this.loadPermissionTree();
+          }
+        },
+        watch: {
+          // 监听权限类型变化，动态重新加载权限树
+          'form.permission_type': function(newVal, oldVal) {
+            // 只有在权限类型有值且不是初始化时才重新加载
+            // oldVal 为空或 undefined 表示是初始化阶段，不应该清空 parent_id
+            if (newVal && newVal !== '' && oldVal !== undefined && oldVal !== '' && oldVal !== newVal) {
+              // 重新加载权限树，根据权限类型过滤可选的父权限
+              this.loadPermissionTree(newVal);
+              // 清空已选择的父权限（因为权限类型变了，之前的父权限可能不符合规范）
+              this.form.parent_id = 0;
+            }
+          }
+        },
+        methods: {
+          // 加载编辑数据
+          loadEditData() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.PERMISSION.EDIT_INFO),
+              data: {
+                permission_id: this.form.permission_id
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  var data = res.data;
+                  // 先设置权限树，确保计算属性 parentPermissionOptions 能正确计算
+                  this.permissionTree = data.permission_tree || [];
+                  // 然后设置其他字段，包括 parent_id（这样下拉框能正确显示当前父权限）
+                  this.form.permission_id = data.permission_id;
+                  this.form.parent_id = data.parent_id || 0;
+                  this.form.permission_name = data.permission_name;
+                  this.form.permission_code = data.permission_code;
+                  this.form.permission_type = data.permission_type.toString();
+                  this.form.path = data.path || '';
+                  this.form.icon = data.icon || '';
+                  this.form.sort_order = data.sort_order || 0;
+                  this.form.status = data.status;
+                  this.form.is_system = data.is_system;
+                } else {
+                  tools.showMsg(res.message || '获取权限信息失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取权限信息失败', 0);
+              }
+            });
+          },
+          // 加载权限树（用于选择父权限）
+          // permissionType: 可选，如果指定则只返回可以作为该类型权限的父权限的节点
+          loadPermissionTree(permissionType) {
+            var data = {
+              parent_id: 0
+            };
+            // 如果指定了权限类型，传递给后端进行过滤
+            if (permissionType && permissionType > 0) {
+              data.permission_type = parseInt(permissionType);
+            }
+            
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.PERMISSION.GET_TREE),
+              data: data,
+              success: (res) => {
+                if (res && res.code == 0) {
+                  this.permissionTree = res.data.tree || [];
+                } else {
+                  tools.showMsg(res.message || '获取权限树失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取权限树失败', 0);
+              }
+            });
+          },
+          onSubmit() {
+            // 先进行表单校验
+            if (!this.checkForm()) {
+              return;
+            }
+            // 设置按钮状态
+            tools.setSubmitBtn(0);
+            // ajax提交
+            var url = this.isEdit 
+              ? API_CONFIG.buildURL(API_CONFIG.ADMIN.PERMISSION.UPDATE)
+              : API_CONFIG.buildURL(API_CONFIG.ADMIN.PERMISSION.ADD_PERMISSION);
+            
+            var data = {
+              permission_id: this.form.permission_id,
+              parent_id: this.form.parent_id || 0,
+              permission_name: this.form.permission_name,
+              permission_code: this.form.permission_code,
+              permission_type: parseInt(this.form.permission_type),
+              path: this.form.path || '',
+              icon: this.form.icon || '',
+              sort_order: parseInt(this.form.sort_order) || 0,
+              status: parseInt(this.form.status),
+              is_system: this.form.is_system || 0
+            };
+
+            app.postJson({
+              url: url,
+              data: data,
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg(res.message, 1);
+                  tools.setSubmitBtn(2);
+                  tools.showSuccess(this.url.index);
+                } else {
+                  tools.setSubmitBtn(1);
+                  tools.showMsg(res.message || (this.isEdit ? '更新权限失败' : '新增权限失败'), 0);
+                }
+              },
+              error: (err) => {
+                tools.setSubmitBtn(1);
+                tools.showMsg(err.message || (this.isEdit ? '更新权限失败' : '新增权限失败'), 0);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          },
+
+          // checkForm 表单校验
+          checkForm() {
+            // 1. 校验权限名称
+            if (!this.form.permission_name || this.form.permission_name.trim() === '') {
+              tools.showMsg('权限名称不能为空', 0);
+              return false;
+            }
+
+            // 2. 校验权限编码
+            if (!this.form.permission_code || this.form.permission_code.trim() === '') {
+              tools.showMsg('权限编码不能为空', 0);
+              return false;
+            }
+            // 权限编码格式校验：只能包含字母和点，格式如 business.product.delete
+            // 必须以字母开头和结尾，中间用点分隔，不能有连续的点
+            const permissionCodePattern = /^[a-zA-Z]+(\.[a-zA-Z]+)*$/;
+            const code = this.form.permission_code.trim();
+            if (!permissionCodePattern.test(code)) {
+              tools.showMsg('权限编码只能包含字母和点，格式如：business.product.delete', 0);
+              return false;
+            }
+            // 长度校验：3-100位
+            if (code.length < 3 || code.length > 100) {
+              tools.showMsg('权限编码长度必须在3-100位之间', 0);
+              return false;
+            }
+
+            // 3. 校验权限类型
+            if (!this.form.permission_type || this.form.permission_type === '') {
+              tools.showMsg('权限类型不能为空', 0);
+              return false;
+            }
+
+            return true;
+          }
+        }
+      });
+    </script>
+
+    <style>
+      .form-section-divider {
+        width: 100%;
+        margin: 10px 0;
+        padding: 0;
+      }
+      
+      .form-section-divider .divider-text {
+        position: relative;
+        display: inline-block;
+        padding-left: 12px;
+        margin-bottom: 10px;
+        color: #409eff;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      
+      .form-section-divider .divider-text::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 14px;
+        background-color: #409eff;
+        border-radius: 2px;
+      }
+    </style>
+  </body>
+</html>
+

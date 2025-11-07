@@ -1,0 +1,94 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminUserLogin 用户登录方式表
+type AdminUserLogin struct {
+	LoginID         uint64    `json:"login_id" gorm:"primaryKey;autoIncrement;column:login_id;comment:登录方式ID"`                                                                                                           // 登录方式ID
+	UserID          uint64    `json:"user_id" gorm:"uniqueIndex:uk_user_login_type;index:idx_user_id;not null;column:user_id;comment:用户ID"`                                                                              // 用户ID
+	LoginType       string    `json:"login_type" gorm:"uniqueIndex:uk_login_type_value;uniqueIndex:uk_user_login_type;index:idx_login_type;size:64;not null;column:login_type;comment:登录类型：password、sms、oauth:provider"` // 登录类型：password、sms、oauth:provider
+	LoginValue      string    `json:"login_value" gorm:"uniqueIndex:uk_login_type_value;size:100;not null;column:login_value;comment:登录标识（手机号/用户名/unionid或openid）"`                                                      // 登录标识（手机号/用户名/unionid或openid）
+	LoginCredential string    `json:"login_credential" gorm:"size:255;not null;default:'';column:login_credential;comment:登录凭证（密码hash；不得存access_token）"`                                                                 // 登录凭证（密码hash；不得存access_token）
+	Salt            string    `json:"salt" gorm:"size:32;not null;default:'';column:salt;comment:密码盐值"`                                                                                                                  // 密码盐值
+	Status          int8      `json:"status" gorm:"index:idx_status;not null;default:1;column:status;comment:状态：1启用，0禁用"`                                                                                                // 状态：1启用，0禁用
+	CreatedAt       time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                                                                                               // 创建时间
+	UpdatedAt       time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"`                                                                   // 修改时间
+}
+
+// TableName 指定表名
+func (AdminUserLogin) TableName() string {
+	return "admin_user_logins"
+}
+
+func (AdminUserLogin) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminUserLoginRepository struct {
+	dao.Repository[AdminUserLogin]
+}
+
+func NewAdminUserLoginRepository() *AdminUserLoginRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminUserLogin]()
+	if err != nil {
+		panic("创建AdminUserLoginRepository失败: " + err.Error())
+	}
+	return &AdminUserLoginRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminUserLoginRepositoryWithDB(db *gorm.DB) *AdminUserLoginRepository {
+	repo := dao.NewBaseRepository[AdminUserLogin](db)
+	return &AdminUserLoginRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminUserLoginRepository) GetDB() *gorm.DB {
+	return (&AdminUserLogin{}).DB()
+}
+
+// FindByLoginTypeAndValue 根据登录类型和登录标识查找登录方式
+func (r *AdminUserLoginRepository) FindByLoginTypeAndValue(ctx context.Context, loginType, loginValue string) (*AdminUserLogin, error) {
+	return r.FindOneByCondition(ctx, "login_type = ? AND login_value = ? AND status = 1", loginType, loginValue)
+}
+
+// FindByLoginTypeAndValueAnyStatus 根据登录类型和登录标识查找登录方式（不限制状态）
+func (r *AdminUserLoginRepository) FindByLoginTypeAndValueAnyStatus(ctx context.Context, loginType, loginValue string) (*AdminUserLogin, error) {
+	return r.FindOneByCondition(ctx, "login_type = ? AND login_value = ?", loginType, loginValue)
+}
+
+// FindByUserIDAndLoginType 根据用户ID和登录类型查找登录方式
+func (r *AdminUserLoginRepository) FindByUserIDAndLoginType(ctx context.Context, userID uint64, loginType string) (*AdminUserLogin, error) {
+	return r.FindOneByCondition(ctx, "user_id = ? AND login_type = ? AND status = 1", userID, loginType)
+}
+
+// FindByUserIDAndLoginTypeAnyStatus 根据用户ID和登录类型查找登录方式（不限制状态）
+func (r *AdminUserLoginRepository) FindByUserIDAndLoginTypeAnyStatus(ctx context.Context, userID uint64, loginType string) (*AdminUserLogin, error) {
+	return r.FindOneByCondition(ctx, "user_id = ? AND login_type = ?", userID, loginType)
+}
+
+// UpdatePassword 更新密码
+func (r *AdminUserLoginRepository) UpdatePassword(ctx context.Context, loginID uint64, salt, credential string) error {
+	return r.UpdateByCondition(ctx, map[string]interface{}{
+		"login_credential": credential,
+		"salt":             salt,
+		"updated_at":       time.Now(),
+	}, "login_id = ?", loginID)
+}
