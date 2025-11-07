@@ -18,6 +18,15 @@ body {
   height: 100%;
 }
 
+.logo-img {
+  width: 150px;
+  height: 150px;
+  display: block;
+  object-fit: contain;
+  object-position: left center;
+  overflow: hidden;
+}
+
 body[drag] iframe {
   pointer-events: none;
 }

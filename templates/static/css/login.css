@@ -10,7 +10,15 @@
   text-align: center;
 }
 
+/*
 .signin__logo {
+  margin-bottom: 15px;
+}
+*/
+
+.signin__logo img {
+  width: 100%;
+  height: auto;
   margin-bottom: 15px;
 }
 
