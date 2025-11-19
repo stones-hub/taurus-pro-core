@@ -88,7 +88,7 @@
       
       <ui-container>
         <!-- S 侧边栏 -->
-        <ui-aside v-if="checkMode(curSysMenu,'tree')" :class="{'is-collapse': isCollapse}">
+        <ui-aside v-if="checkMode(curSysMenu,'tree')" :class="{'is-collapse': isCollapse}" style="position: relative; z-index: 999999;">
           <ui-menu class="my-page-menu" :key="systemIndex" :collapse="isCollapse">
             <ui-submenu v-for="(page, index) in pageMenu" :key="page.name" :title="page.name" :icon="page.icon"
                         :open="checkMode(curSysMenu,'accordion')?!index:true"
