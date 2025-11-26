@@ -690,6 +690,88 @@ func adminRoutes() {
 		},
 	})
 
+	// 部门管理路由 - 需要JWT验证和权限校验的接口
+	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
+		Prefix: "/admin/dept",
+		Middleware: []router.MiddlewareFunc{
+			middleware.RecoveryMiddleware(func(err any, stack string) {
+				fmt.Printf("Error: %v\nStack: %s\n", err, stack)
+			}),
+			tmid.JWTMiddleware(),
+			tmid.PasswordChangeValidatorMiddleware(),
+			// 添加权限校验中间件（在JWT之后，CSRF之前）
+			tmid.PermissionMiddleware(),
+			tmid.CSRFMiddleware(),
+		},
+		Routes: []router.Router{
+			// 获取部门列表
+			{
+				Path:    "/list",
+				Handler: http.HandlerFunc(app.Core.DeptController.GetDeptList),
+			},
+			// 获取部门详情
+			{
+				Path:    "/detail",
+				Handler: http.HandlerFunc(app.Core.DeptController.GetDeptDetail),
+			},
+			// 更新部门状态
+			{
+				Path:    "/update-status",
+				Handler: http.HandlerFunc(app.Core.DeptController.UpdateDeptStatus),
+			},
+			// 删除部门
+			{
+				Path:    "/delete",
+				Handler: http.HandlerFunc(app.Core.DeptController.DeleteDept),
+			},
+			// 编辑部门信息
+			{
+				Path:    "/edit-info",
+				Handler: http.HandlerFunc(app.Core.DeptController.GetEditDeptInfo),
+			},
+			// 更新部门
+			{
+				Path:    "/update",
+				Handler: http.HandlerFunc(app.Core.DeptController.UpdateDept),
+			},
+			// 新增部门
+			{
+				Path:    "/add",
+				Handler: http.HandlerFunc(app.Core.DeptController.AddDept),
+			},
+			// 获取部门员工列表
+			{
+				Path:    "/user-list",
+				Handler: http.HandlerFunc(app.Core.DeptController.GetDeptUserList),
+			},
+			// 添加部门员工
+			{
+				Path:    "/add-user",
+				Handler: http.HandlerFunc(app.Core.DeptController.AddDeptUser),
+			},
+			// 更新部门员工
+			{
+				Path:    "/update-user",
+				Handler: http.HandlerFunc(app.Core.DeptController.UpdateDeptUser),
+			},
+			// 移除部门员工
+			{
+				Path:    "/remove-user",
+				Handler: http.HandlerFunc(app.Core.DeptController.RemoveDeptUser),
+			},
+			// 批量更新部门员工
+			{
+				Path:    "/batch-update-user",
+				Handler: http.HandlerFunc(app.Core.DeptController.BatchUpdateDeptUser),
+			},
+			// 获取所有部门列表（用于下拉框选择）
+			{
+				Path:    "/get-all",
+				Handler: http.HandlerFunc(app.Core.DeptController.GetAllDepts),
+			},
+		},
+	})
+
 	// 权限管理路由 - 需要JWT验证和权限校验的接口
 	taurus.Container.Http.AddRouterGroup(router.RouteGroup{
 		Prefix: "/admin/permission",

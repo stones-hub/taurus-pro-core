@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">编辑部门</div>
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label" required>部门名称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.dept_name"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">部门编码：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.dept_code"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">父部门：</label>
+          <ui-select
+            class="form-control"
+            placeholder="请选择父部门（可选）"
+            v-model="form.parent_id"
+            :options="parentDeptOptions"
+            clearable
+          ></ui-select>
+        </div>
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label" required>部门描述：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            multi-line enforce-maxlength :maxlength="256"
+            v-model="form.description"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-4">
+          <label class="control-label">排序：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入排序值"
+            v-model="form.sort_order"
+            :disabled="false"
+          ></ui-textbox>
+        </div>
+
+        <!-- 提交 或 返回 -->
+        <div class="btn-group">
+          <ui-button
+            v-if="app.hasButtonPermission('system.department.dept.edit')"
+            color="primary"
+            @click="onSubmit"
+            :disabled="false"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">取消</ui-button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.DEPT_LIST)
+          },
+          form: {
+            dept_id: '',
+            dept_name: '',
+            dept_code: '',
+            description: '',
+            sort_order: 0,
+            parent_id: 0,
+          },
+          parentDeptOptions: [], // 父部门选项列表
+          pageType: 'edit', // detail:详情页 edit:编辑页
+          // 提交按钮
+          submitBtn: {
+            text: '提交'
+          }
+        },
+        created() {
+          let urlParams = tools.url2Obj(window.location.href);
+          this.form.dept_id = urlParams.dept_id || null;
+          this.pageType = urlParams.page_type || 'edit';
+          // 先获取部门信息，然后在获取信息后再加载父部门列表
+          this.getDeptInfo();
+        },
+        methods: {
+          // 加载父部门列表（排除当前部门）
+          loadParentDepts() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.GET_ALL),
+              data: {
+                exclude_dept_id: this.form.dept_id || 0
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  // 转换为下拉框选项格式
+                  this.parentDeptOptions = [
+                    { label: '无（顶级部门）', value: 0 }
+                  ];
+                  if (res.data.list && res.data.list.length > 0) {
+                    res.data.list.forEach(dept => {
+                      this.parentDeptOptions.push({
+                        label: dept.dept_name,
+                        value: dept.dept_id
+                      });
+                    });
+                  }
+                } else {
+                  tools.showMsg(res.message || '获取父部门列表失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取父部门列表失败', 0);
+              }
+            });
+          },
+          // 获取部门信息
+          getDeptInfo() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.EDIT_INFO),
+              data: {dept_id: this.form.dept_id},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  console.log("编辑部门信息: ", res);
+                  NUI.set(this, 'form', {
+                    dept_id: res.data.dept_id,
+                    dept_name: res.data.dept_name,
+                    dept_code: res.data.dept_code,
+                    description: res.data.description,
+                    sort_order: res.data.sort_order,
+                    parent_id: res.data.parent_id || 0,
+                  });
+                  // 获取部门信息后，加载父部门列表（排除当前部门）
+                  this.loadParentDepts();
+                } else {
+                  tools.showMsg(res.message || '获取部门信息失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.showMsg(err.message || '获取部门信息失败', 0);
+              }
+            });
+          },
+          onSubmit() {
+            // 设置按钮状态 0：按钮置灰不可点击，1：提交按钮立即还原，2：提交按钮2秒后还原(与消息提示框消息时间同步还原)
+            tools.setSubmitBtn(0);
+            // 处理数据类型转换（ui-textbox返回的是字符串，需要转换为数字）
+            const submitData = {
+              dept_id: parseInt(this.form.dept_id) || 0,
+              dept_name: this.form.dept_name,
+              description: this.form.description || '',
+              sort_order: parseInt(this.form.sort_order) || 0,
+              parent_id: parseInt(this.form.parent_id) || 0
+            };
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.UPDATE),
+              data: submitData,
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showSuccess(this.url.index);
+                  tools.setSubmitBtn(2);
+                  tools.showMsg(res.message || '更新部门成功', 1);
+                } else {
+                  tools.setSubmitBtn(1);
+                  tools.showMsg(res.message || '更新部门失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.setSubmitBtn(1);
+                tools.showMsg(err.message || '更新部门失败', 0);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          }
+        }
+      });
+    </script>
+
+    <style></style>
+  </body>
+</html>
+

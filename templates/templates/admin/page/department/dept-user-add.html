@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">部门员工管理</div>
+
+      <!-- 部门信息 -->
+      <div class="form-section-divider">
+        <span class="divider-text">部门信息</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">部门名称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.dept_name"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">部门编码：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.dept_code"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">父部门：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.parent_dept_name"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">排序：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.sort_order"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">状态：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.status_text"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label">部门描述：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            multi-line enforce-maxlength :maxlength="256"
+            v-model="deptInfo.description"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">创建时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.add_time"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">更新时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="deptInfo.update_time"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+      </div>
+
+      <!-- 穿梭框 -->
+      <div class="form-section-divider">
+        <span class="divider-text">员工管理</span>
+      </div>
+
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-24">
+          <!-- transferOptions: 所有员工的可选项（左侧+右侧的数据源） -->
+          <!-- transferValue: 已添加的员工对象数组（右侧显示这些） -->
+          <!-- auto-plus: 自动添加未选中的员工到右侧 -->
+          <!-- titles: 穿梭框的标题（左侧：未添加员工，右侧：已添加员工） -->
+          <!-- 穿梭框组件的工作原理：
+          1. 组件会根据 transferValue 中的 value 与 transferOptions 中的 value 进行匹配
+          2. 左侧显示：transferOptions 中 value 不在 transferValue 中的项
+          3. 右侧显示：transferOptions 中 value 在 transferValue 中的项
+          -->
+          <ui-transfer 
+            v-model="transferValue" 
+            :data="transferOptions" 
+            auto-plus
+            :titles="['未添加员工', '已添加员工']"
+          ></ui-transfer>
+        </div>
+      </div>
+
+      <!-- 提交 或 返回 -->
+      <div class="my-form ui-grid">
+        <div class="btn-group">
+          <ui-button
+            v-if="app.hasButtonPermission('system.department.dept.user.add')"
+            color="primary"
+            @click="onSubmit"
+            :disabled="submitBtn.disabled"
+            >{{submitBtn.text}}</ui-button
+          >
+          <ui-button @click="onCancel">返回</ui-button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.DEPT_LIST)
+          },
+          form: {
+            dept_id: '' // 部门ID
+          },
+          deptInfo: {
+            dept_id: null,
+            dept_name: '',
+            dept_code: '',
+            parent_id: 0,
+            parent_dept_name: '无',
+            description: '',
+            sort_order: 0,
+            status: 1,
+            status_text: '',
+            add_time: '',
+            update_time: ''
+          },
+          allUsers: [], // 所有员工列表
+          deptUsers: [], // 当前部门员工列表
+          deptUserIds: [], // 当前部门员工ID列表（临时存储）
+          transferValue: [], // 穿梭框已选中的值（已添加的员工对象数组，格式: [{label: '...', value: user_id}, ...]）
+          transferOptions: [], // 穿梭框选项数据（所有员工，格式: [{label: '...', value: user_id}, ...]）
+          submitBtn: {
+            disabled: false,
+            text: '保存'
+          }
+        },
+        created() {
+          let urlParams = tools.url2Obj(window.location.href);
+          this.form.dept_id = urlParams.dept_id || '';
+          // 加载部门信息和员工数据
+          this.loadDeptInfo();
+          this.loadAllData();
+        },
+        methods: {
+          // 加载部门信息
+          loadDeptInfo() {
+            if (!this.form.dept_id) return;
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.INFO),
+              data: {dept_id: parseInt(this.form.dept_id) || 0},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  // 设置部门基本信息
+                  let parentDeptName = '无';
+                  if (res.data.parent_id && res.data.parent_id > 0) {
+                    // 如果有父部门ID，需要获取父部门名称
+                    this.getParentDeptName(res.data.parent_id);
+                    parentDeptName = '加载中...';
+                  }
+                  this.deptInfo = {
+                    dept_id: res.data.dept_id,
+                    dept_name: res.data.dept_name || '',
+                    dept_code: res.data.dept_code || '',
+                    parent_id: res.data.parent_id || 0,
+                    parent_dept_name: parentDeptName,
+                    description: res.data.description || '',
+                    sort_order: res.data.sort_order || 0,
+                    status: res.data.status || 1,
+                    status_text: res.data.status == 1 ? '启用' : '禁用',
+                    add_time: res.data.add_time || '',
+                    update_time: res.data.update_time || ''
+                  };
+                }
+              },
+              error: (err) => {
+                console.error('获取部门信息失败:', err);
+              }
+            });
+          },
+          // 获取父部门名称
+          getParentDeptName(parentID) {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.INFO),
+              data: {dept_id: parentID},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  this.deptInfo.parent_dept_name = res.data.dept_name || '无';
+                } else {
+                  this.deptInfo.parent_dept_name = '无';
+                }
+              },
+              error: (err) => {
+                console.error('获取父部门名称失败:', err);
+                this.deptInfo.parent_dept_name = '无';
+              }
+            });
+          },
+          // 加载所有数据（所有员工和当前部门员工）
+          loadAllData() {
+            if (!this.form.dept_id) return;
+            
+            // 并行加载所有员工和部门员工列表
+            Promise.all([
+              this.loadAllUsers(),
+              this.loadDeptUsers()
+            ]).then(() => {
+              // 数据加载完成后，初始化穿梭框数据
+              this.initTransferData();
+            }).catch(err => {
+              console.error('加载数据失败:', err);
+              tools.showMsg('加载数据失败', 0);
+            });
+          },
+          // 加载所有员工列表
+          loadAllUsers() {
+            return new Promise((resolve, reject) => {
+              app.postJson({
+                url: API_CONFIG.buildURL(API_CONFIG.ADMIN.USER.LIST),
+                data: {
+                  page_no: 1,
+                  page_size: 10000, // 获取所有用户
+                  username_mobile_email: '',
+                  status: 1 // 只获取启用的用户
+                },
+                success: (res) => {
+                  if (res && res.code == 0) {
+                    this.allUsers = res.data.users || [];
+                  } else {
+                    this.allUsers = [];
+                  }
+                  resolve();
+                },
+                error: (err) => {
+                  console.error('获取用户列表失败:', err);
+                  this.allUsers = [];
+                  reject(err);
+                }
+              });
+            });
+          },
+          // 加载当前部门员工列表
+          loadDeptUsers() {
+            return new Promise((resolve, reject) => {
+              app.postJson({
+                url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.USER_LIST),
+                data: {
+                  dept_id: parseInt(this.form.dept_id) || 0,
+                  page_no: 1,
+                  page_size: 10000 // 获取所有部门员工
+                },
+                success: (res) => {
+                  if (res && res.code == 0) {
+                    const deptUsers = res.data.list || [];
+                    // 保存部门员工数据
+                    this.deptUsers = deptUsers;
+                    // transferValue 先保存为 ID 数组，等 initTransferData 时转换为对象数组
+                    this.deptUserIds = deptUsers.map(item => Number(item.user_id)).filter(id => id > 0);
+                  } else {
+                    this.deptUsers = [];
+                    this.deptUserIds = [];
+                  }
+                  resolve();
+                },
+                error: (err) => {
+                  console.error('获取部门员工列表失败:', err);
+                  this.deptUsers = [];
+                  this.deptUserIds = [];
+                  reject(err);
+                }
+              });
+            });
+          },
+          // 初始化穿梭框数据
+          initTransferData() {
+            // transferOptions: 所有员工的可选项（左侧+右侧的数据源）
+            // 格式: [{label: '用户名 (真实姓名)', value: user_id}, ...]
+            this.transferOptions = (this.allUsers || []).map(user => {
+              const userId = Number(user.user_id);
+              const label = `${user.username || ''}${user.realname ? ' (' + user.realname + ')' : ''}`;
+              return {
+                label: label,
+                value: userId
+              };
+            });
+            
+            // transferValue: 已添加的员工对象数组（右侧显示这些）
+            // 格式: [{label: '用户名 (真实姓名)', value: user_id}, ...]
+            // 从 deptUsers 构建，确保包含 label 和 value
+            this.transferValue = (this.deptUsers || []).map(deptUser => {
+              const userId = Number(deptUser.user_id);
+              const label = `${deptUser.username || ''}${deptUser.realname ? ' (' + deptUser.realname + ')' : ''}`;
+              return {
+                label: label,
+                value: userId
+              };
+            }).filter(item => item.value > 0);
+          },
+          onSubmit() {
+            // 先进行表单校验
+            if (!this.checkForm()) {
+              return;
+            }
+
+            // 设置按钮状态
+            tools.setSubmitBtn(0);
+
+            // 直接获取穿梭框选中的值（后端已兼容对象数组格式）
+            const userIds = this.transferValue || [];
+
+            console.log('userIds: ', userIds);
+
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.BATCH_UPDATE_USER),
+              data: {
+                dept_id: parseInt(this.form.dept_id) || 0,
+                user_ids: userIds
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  tools.showMsg(res.message, 1);
+                  tools.setSubmitBtn(2);
+                  tools.showSuccess(this.url.index);
+                } else {
+                  tools.setSubmitBtn(1);
+                  tools.showMsg(res.message || '保存失败', 0);
+                }
+              },
+              error: (err) => {
+                tools.setSubmitBtn(1);
+                tools.showMsg(err.message || '保存失败', 0);
+              }
+            });
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          },
+          // checkForm 表单校验
+          checkForm() {
+            if (!this.form.dept_id || this.form.dept_id === '') {
+              tools.showMsg('部门ID不能为空', 0);
+              return false;
+            }
+            return true;
+          }
+        }
+      });
+    </script>
+
+    <style>
+      .form-section-divider {
+        width: 100%;
+        margin: 20px 0 10px 0;
+        padding: 0;
+      }
+      
+      .form-section-divider .divider-text {
+        position: relative;
+        display: inline-block;
+        padding-left: 12px;
+        margin-bottom: 10px;
+        color: #409eff;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      
+      .form-section-divider .divider-text::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 14px;
+        background-color: #409eff;
+        border-radius: 2px;
+      }
+    </style>
+  </body>
+</html>

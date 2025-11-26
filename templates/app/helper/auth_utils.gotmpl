@@ -1,11 +1,13 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/stones-hub/taurus-pro-common/pkg/util/tvalid"
+	"gorm.io/gorm"
 )
 
 // NormalizeString 去空格
@@ -30,6 +32,19 @@ func IsUniqueConflictMySQL(err error) bool {
 	}
 	e := strings.ToLower(err.Error())
 	return strings.Contains(e, "duplicate") || strings.Contains(e, "1062")
+}
+
+// IsRecordNotFound 判断错误是否是"未找到记录"的错误
+// 兼容不同版本的 GORM，通过检查错误信息来判断
+func IsRecordNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := strings.ToLower(err.Error())
+	// 检查错误信息中是否包含"record not found"相关的关键词
+	return strings.Contains(errMsg, "record not found") ||
+		strings.Contains(errMsg, "not found") ||
+		errors.Is(err, gorm.ErrRecordNotFound)
 }
 
 // ValidatePassword 验证密码（别名）

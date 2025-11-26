@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=9;IE=10;IE=Edge,chrome=1" />
+    <link rel="stylesheet" href="/static/lib/theme-chalk/nui.min.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script type="text/javascript" src="/static/lib/nui.min.js"></script>
+    <script type="text/javascript" src="/static/js/js.cookie.js"></script>
+    <script type="text/javascript" src="/static/js/config.js"></script>
+    <script type="text/javascript" src="/static/js/app.js"></script>
+    <script
+      type="text/javascript"
+      src="/static/js/lib/jquery@3.3.1/jquery.min.js"
+    ></script>
+    <script type="text/javascript" src="/static/js/tools.js"></script>
+    <!-- 如果需要使用表格，则需要引入该文件 -->
+    <script
+      type="text/javascript"
+      src="/static/js/components/my-simple-table.js"
+    ></script>
+  </head>
+
+  <body>
+    <div id="app" type="page" class="base-container">
+      <div class="my-title">部门详情</div>
+      <div class="my-form ui-grid">
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">部门名称：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.dept_name"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">部门编码：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.dept_code"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">父部门：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.parent_dept_name"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">排序：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.sort_order"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">状态：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.status_text"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-24">
+          <label class="control-label">部门描述：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            multi-line enforce-maxlength :maxlength="256"
+            v-model="form.description"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">创建时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.add_time"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+
+        <div class="form-group ui-grid-cell col-8">
+          <label class="control-label">更新时间：</label>
+          <ui-textbox
+            class="form-control"
+            placeholder="请输入"
+            v-model="form.update_time"
+            :disabled="true"
+          ></ui-textbox>
+        </div>
+      </div>
+
+      <!-- 部门员工列表 -->
+      <div class="form-section-divider">
+        <span class="divider-text">部门员工列表</span>
+      </div>
+
+      <section class="my-table">
+        <my-simple-table
+          :columns="userColumns"
+          :data="userTable.data"
+          :loading="userTable.loading"
+          @switch="switchUserData"
+        >
+        </my-simple-table>
+      </section>
+
+      <!-- 分页 -->
+      <section class="my-pagination">
+        <ui-pagination
+          :page-size="userForm.page_size"
+          :total="userForm.result_total"
+          :current="userForm.page_no"
+          @change="userPageNumChange"
+        ></ui-pagination>
+        <span
+          >总{{Math.ceil(userForm.result_total/userForm.page_size)}}页/{{userForm.result_total}}条记录
+          每页显示</span
+        >
+        <ui-select
+          v-model="userForm.page_size"
+          :options="userTable.pageSizes"
+          @change="userPageSizeChange"
+        ></ui-select>
+      </section>
+    </div>
+
+    <script>
+      NUI({
+        data: {
+          url: {
+            index: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.DEPT_LIST)
+          },
+          form: {
+            dept_id: null,
+            dept_name: null,
+            dept_code: null,
+            parent_id: 0,
+            parent_dept_name: '无',
+            description: null,
+            sort_order: 0,
+            status: 1,
+            status_text: '',
+            add_time: '',
+            update_time: '',
+          },
+          pageType: 'detail', // detail:详情页 edit:编辑页
+          userForm: {
+            page_no: 1,
+            page_size: 15,
+            result_total: 0
+          },
+          userColumns: [
+            {
+              title: '用户名',
+              name: 'username',
+              align: 'left',
+              visible: true
+            },
+            {
+              title: '真实姓名',
+              name: 'realname',
+              align: 'left',
+              visible: true
+            },
+            {
+              title: '手机号',
+              name: 'mobile',
+              align: 'left',
+              visible: true
+            },
+            {
+              title: '是否主要部门',
+              name: 'is_primary',
+              align: 'center',
+              type: 'switch',
+              width: 120,
+              visible: true
+            },
+            {
+              title: '是否部门管理员',
+              name: 'is_manager',
+              align: 'center',
+              type: 'switch',
+              width: 120,
+              visible: true
+            },
+            {
+              title: '状态',
+              name: 'status',
+              align: 'center',
+              width: 100,
+              visible: true,
+              formatter: function(value) {
+                return value == 1 ? '启用' : '禁用';
+              }
+            },
+            {
+              title: '加入时间',
+              name: 'add_time',
+              align: 'left',
+              width: 150,
+              visible: true
+            }
+          ],
+          userTable: {
+            loading: false,
+            data: [],
+            pageSizes: ['15', '30', '50', '100']
+          }
+        },
+        created() {
+          let urlParams = tools.url2Obj(window.location.href);
+          this.form.dept_id = urlParams.dept_id || null;
+          this.pageType = urlParams.page_type || 'detail';
+          // 通过dept_id获取部门信息
+          this.getDeptInfo();
+          // 加载部门员工列表
+          this.loadDeptUsers();
+        },
+        methods: {
+          // 获取部门信息
+          getDeptInfo() {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.INFO),
+              data: {dept_id: this.form.dept_id},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  console.log("部门信息: ", JSON.stringify(res.data));
+                  // 设置部门基本信息
+                  let parentDeptName = '无';
+                  if (res.data.parent_id && res.data.parent_id > 0) {
+                    // 如果有父部门ID，需要获取父部门名称
+                    this.getParentDeptName(res.data.parent_id);
+                    parentDeptName = '加载中...';
+                  }
+                  NUI.set(this, 'form', {
+                    dept_id: res.data.dept_id,
+                    dept_name: res.data.dept_name,
+                    dept_code: res.data.dept_code,
+                    parent_id: res.data.parent_id || 0,
+                    parent_dept_name: parentDeptName,
+                    description: res.data.description || '',
+                    sort_order: res.data.sort_order || 0,
+                    status: res.data.status || 1,
+                    status_text: res.data.status == 1 ? '启用' : '禁用',
+                    add_time: res.data.add_time || '',
+                    update_time: res.data.update_time || '',
+                  });
+                } else {
+                  tools.showMsg(res.message || '获取部门信息失败', 0);
+                }
+              },
+              error: (err) => {
+                console.log("获取部门信息失败: ", err);
+                tools.showMsg(err.message || '获取部门信息失败', 0);
+              }
+            });
+          },
+          // 获取父部门名称
+          getParentDeptName(parentID) {
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.INFO),
+              data: {dept_id: parentID},
+              success: (res) => {
+                if (res && res.code == 0) {
+                  this.form.parent_dept_name = res.data.dept_name || '无';
+                } else {
+                  this.form.parent_dept_name = '未知';
+                }
+              },
+              error: (err) => {
+                this.form.parent_dept_name = '未知';
+              }
+            });
+          },
+          // 加载部门员工列表
+          loadDeptUsers() {
+            if (!this.form.dept_id) return;
+            this.userTable.loading = true;
+            app.postJson({
+              url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.USER_LIST),
+              data: {
+                dept_id: parseInt(this.form.dept_id) || 0,
+                page_no: this.userForm.page_no,
+                page_size: this.userForm.page_size
+              },
+              success: (res) => {
+                if (res && res.code == 0) {
+                  this.userTable.data = res.data.list || [];
+                  this.userForm.result_total = res.data.result_total || 0;
+                  this.userForm.page_size = res.data.page_size || 15;
+                  this.userForm.page_no = res.data.page_no || 1;
+                } else {
+                  tools.showMsg(res.message || '获取部门员工列表失败', 0);
+                }
+                this.userTable.loading = false;
+              },
+              error: (err) => {
+                this.userTable.loading = false;
+                tools.showMsg(err.message || '获取部门员工列表失败', 0);
+              }
+            });
+          },
+          // 员工列表分页大小改变
+          userPageSizeChange(val) {
+            this.userForm.page_size = val;
+            this.loadDeptUsers();
+          },
+          // 员工列表页码改变
+          userPageNumChange(val) {
+            this.userForm.page_no = val;
+            this.loadDeptUsers();
+          },
+          // 修改员工开关状态, value: 1 启用, 0 禁用, data: 行数据, column: 列数据
+          switchUserData(value, data, column) {
+            if (column.name === 'is_primary' || column.name === 'is_manager') {
+              // 构建更新请求数据
+              const updateData = {
+                id: data.id,
+                is_primary: column.name === 'is_primary' ? value : data.is_primary,
+                is_manager: column.name === 'is_manager' ? value : data.is_manager,
+                status: data.status || 1
+              };
+
+              app.postJson({
+                url: API_CONFIG.buildURL(API_CONFIG.ADMIN.DEPT.UPDATE_USER),
+                data: updateData,
+                success: (res) => {
+                  if (res && res.code == 0) {
+                    if (column.name === 'is_primary') {
+                      tools.showMsg(value == 1 ? '已设置为主要部门' : '已取消主要部门', 1);
+                    } else if (column.name === 'is_manager') {
+                      tools.showMsg(value == 1 ? '已设置为部门管理员' : '已取消部门管理员', 1);
+                    }
+                    // 刷新列表
+                    this.loadDeptUsers();
+                  } else {
+                    // 如果更新失败，恢复开关状态
+                    data[column.name] = value === 1 ? 0 : 1;
+                    tools.showMsg(res.message || '更新失败', 0);
+                  }
+                },
+                error: (error) => {
+                  // 如果更新失败，恢复开关状态
+                  data[column.name] = value === 1 ? 0 : 1;
+                  tools.showMsg(error.message || '更新失败', 0);
+                }
+              });
+            }
+          },
+          //取消返回
+          onCancel() {
+            tools.returnIndex(this.url.index);
+          }
+        }
+      });
+    </script>
+
+    <style>
+      .form-section-divider {
+        width: 100%;
+        margin: 20px 0 10px 0;
+        padding: 0;
+      }
+      
+      .form-section-divider .divider-text {
+        position: relative;
+        display: inline-block;
+        padding-left: 12px;
+        margin-bottom: 10px;
+        color: #409eff;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      
+      .form-section-divider .divider-text::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 14px;
+        background-color: #409eff;
+        border-radius: 2px;
+      }
+    </style>
+  </body>
+</html>
+

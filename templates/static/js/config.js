@@ -61,6 +61,27 @@ const API_CONFIG = {
       GET_ALL_PERMISSIONS: '/admin/role/get-all-permissions', // 获取系统所有权限点
     },
 
+    DEPT: {
+      LIST: '/admin/dept/list',                           // 获取部门列表
+      INFO: '/admin/dept/detail',                         // 获取部门详情
+      UPDATE_STATUS: '/admin/dept/update-status',         // 更新部门状态
+      DELETE: '/admin/dept/delete',                       // 删除部门
+      EDIT_INFO: '/admin/dept/edit-info',                 // 获取部门信息用于编辑
+      UPDATE: '/admin/dept/update',                       // 更新部门相关信息
+      ADD: '/admin/tpl/page/department/dept-add.html',       // 新增部门页
+      ADD_DEPT: '/admin/dept/add',                        // 新增部门
+      DEPT_LIST: '/admin/tpl/page/department/dept.html',     // 部门列表
+      EDIT: '/admin/tpl/page/department/dept-edit.html',     // 编辑部门页
+      DETAIL: '/admin/tpl/page/department/dept-detail.html', // 部门详情页
+      ADD_DEPT_USER: '/admin/tpl/page/department/dept-user-add.html', // 添加部门员工页
+      USER_LIST: '/admin/dept/user-list',                 // 获取部门员工列表
+      ADD_USER: '/admin/dept/add-user',                   // 添加部门员工
+      UPDATE_USER: '/admin/dept/update-user',             // 更新部门员工
+      REMOVE_USER: '/admin/dept/remove-user',            // 移除部门员工
+      BATCH_UPDATE_USER: '/admin/dept/batch-update-user', // 批量更新部门员工
+      GET_ALL: '/admin/dept/get-all',                     // 获取所有部门列表（用于下拉框）
+    },
+
     PERMISSION: {
       LIST: '/admin/permission/list',                     // 获取权限列表
       ADD_PERMISSION: '/admin/permission/add',            // 新增权限

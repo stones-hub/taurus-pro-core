@@ -7,7 +7,7 @@
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
+/*!40101 SET NAMES utf8 */;
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -40,7 +40,7 @@ CREATE TABLE `admin_depts` (
   KEY `idx_dept_source` (`dept_source`) USING BTREE,
   KEY `idx_external_id` (`external_id`) USING BTREE,
   KEY `idx_status` (`status`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='部门表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='部门表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -49,6 +49,7 @@ CREATE TABLE `admin_depts` (
 
 LOCK TABLES `admin_depts` WRITE;
 /*!40000 ALTER TABLE `admin_depts` DISABLE KEYS */;
+INSERT INTO `admin_depts` VALUES (1,'Taurus团队',0,'taurus','初始部门',0,1,'',1,'2025-11-26 14:28:32','2025-11-26 14:28:32'),(2,'技术中心',1,'tel','技术中心',1,1,'',1,'2025-11-26 14:36:50','2025-11-26 14:36:50');
 /*!40000 ALTER TABLE `admin_depts` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -77,7 +78,7 @@ CREATE TABLE `admin_permissions` (
   KEY `idx_parent_id` (`parent_id`) USING BTREE,
   KEY `idx_permission_type` (`permission_type`) USING BTREE,
   KEY `idx_status` (`status`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='权限表';
+) ENGINE=InnoDB AUTO_INCREMENT=66 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='权限表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -86,7 +87,7 @@ CREATE TABLE `admin_permissions` (
 
 LOCK TABLES `admin_permissions` WRITE;
 /*!40000 ALTER TABLE `admin_permissions` DISABLE KEYS */;
-INSERT INTO `admin_permissions` VALUES (1,0,'系统管理','system',1,'','settings_applications',1,1,1,'2025-11-06 14:13:38','2025-11-06 15:31:26'),(2,1,'用户权限管理','system.account',1,'','settings_applications',1,1,1,'2025-11-06 14:13:38','2025-11-06 15:44:55'),(3,2,'用户管理','system.account.user',1,'page/account/user.html','person',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(4,3,'新增用户','system.account.user.add',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(5,3,'编辑用户','system.account.user.edit',2,'','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(6,3,'删除用户','system.account.user.delete',2,'','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(7,3,'刷新列表','system.account.user.refresh',2,'','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(8,3,'获取用户列表','system.account.user.api.list',3,'/admin/user/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(9,3,'获取用户信息','system.account.user.api.info',3,'/admin/user/info','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(10,3,'新增用户接口','system.account.user.api.add',3,'/admin/user/add','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(11,3,'更新用户接口','system.account.user.api.update',3,'/admin/user/update','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(12,3,'删除用户接口','system.account.user.api.delete',3,'/admin/user/delete','',5,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(13,3,'更新用户状态接口','system.account.user.api.update-status',3,'/admin/user/update-status','',6,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(14,3,'获取当前用户信息','system.account.user.api.current-info',3,'/admin/user/current-info','',7,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(15,2,'角色管理','system.account.role',1,'page/account/role.html','group',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(16,15,'新增角色','system.account.role.add',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(17,15,'编辑角色','system.account.role.edit',2,'','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(18,15,'删除角色','system.account.role.delete',2,'','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(19,15,'刷新列表','system.account.role.refresh',2,'','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(20,15,'获取角色列表','system.account.role.api.list',3,'/admin/role/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(21,15,'获取角色详情','system.account.role.api.detail',3,'/admin/role/detail','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(22,15,'获取编辑角色信息','system.account.role.api.edit-info',3,'/admin/role/edit-info','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(23,15,'新增角色接口','system.account.role.api.add',3,'/admin/role/add','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(24,15,'更新角色接口','system.account.role.api.update',3,'/admin/role/update','',5,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(25,15,'删除角色接口','system.account.role.api.delete',3,'/admin/role/delete','',6,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(26,15,'更新角色状态接口','system.account.role.api.update-status',3,'/admin/role/update-status','',7,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(27,15,'更新是否系统角色接口','system.account.role.api.update-is-system',3,'/admin/role/update-is-system','',8,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(28,15,'获取所有权限接口','system.account.role.api.get-all-permissions',3,'/admin/role/get-all-permissions','',9,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(29,15,'获取用户角色和权限','system.account.role.api.get-user-role-permissions',3,'/admin/role/get-user-role-permissions','',10,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(30,2,'权限管理','system.account.permission',1,'page/account/permission.html','lock',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(31,30,'新增权限','system.account.permission.add',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(32,30,'编辑权限','system.account.permission.edit',2,'','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(33,30,'删除权限','system.account.permission.delete',2,'','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(34,30,'刷新列表','system.account.permission.refresh',2,'','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(35,30,'获取权限列表','system.account.permission.api.list',3,'/admin/permission/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(36,30,'获取编辑权限信息','system.account.permission.api.edit-info',3,'/admin/permission/edit-info','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(37,30,'获取权限树','system.account.permission.api.get-tree',3,'/admin/permission/get-tree','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(38,30,'新增权限接口','system.account.permission.api.add',3,'/admin/permission/add','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(39,30,'更新权限接口','system.account.permission.api.update',3,'/admin/permission/update','',5,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(40,30,'删除权限接口','system.account.permission.api.delete',3,'/admin/permission/delete','',6,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(41,30,'更新权限状态接口','system.account.permission.api.update-status',3,'/admin/permission/update-status','',7,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(42,30,'更新是否系统权限接口','system.account.permission.api.update-is-system',3,'/admin/permission/update-is-system','',8,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(43,1,'后台日志','system.log',1,'','markunread_mailbox',2,1,1,'2025-11-06 14:13:38','2025-11-06 15:31:26'),(44,43,'登录日志','system.log.login',1,'page/log/login.html','history',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(45,44,'查询登录日志','system.log.login.query',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(46,44,'获取登录日志列表','system.log.login.api.list',3,'/admin/login-log/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(47,3,'用户管理列表查询','system.accout.user.query',2,'','',0,1,0,'2025-11-06 16:03:52','2025-11-06 16:03:52'),(48,15,'角色管理列表查询','system.account.role.query',2,'','',0,1,0,'2025-11-06 16:04:53','2025-11-06 16:05:14'),(49,30,'权限管理列表查询','system.account.permission.query',2,'','',1,1,0,'2025-11-06 16:07:37','2025-11-06 16:24:19'),(50,1,'信息管理','system.profile',1,'','history',0,1,1,'2025-11-06 19:04:29','2025-11-06 19:08:40'),(51,50,'个人信息','system.profile.info',1,'page/profile/profile.html','',0,1,1,'2025-11-06 19:06:14','2025-11-06 19:09:00'),(52,51,'个人信息更新','system.profile.info.updateProfile',2,'','',0,1,0,'2025-11-07 11:34:54','2025-11-07 11:34:54'),(53,51,'修改密码','system.profile.info.password',2,'','',0,1,0,'2025-11-07 11:35:43','2025-11-07 11:35:43'),(54,51,'绑定与解绑手机号码','system.profile.info.mobile',2,'','',0,1,0,'2025-11-07 11:36:27','2025-11-07 11:36:27'),(55,51,'修改密码','system.profile.info.password.changePassword',3,'/admin/user/change-password','',0,1,0,'2025-11-07 11:40:36','2025-11-07 11:43:27'),(56,51,'绑定手机号','system.profile.info.bindMobile',3,'/admin/user/bind-mobile','',0,1,0,'2025-11-07 11:41:30','2025-11-07 11:46:28'),(57,51,'解绑手机号','system.profile.info.unbindMobile',3,'/admin/user/unbind-mobile','',0,1,0,'2025-11-07 11:42:21','2025-11-07 12:20:00');
+INSERT INTO `admin_permissions` VALUES (1,0,'系统管理','system',1,'','settings_applications',1,1,1,'2025-11-06 14:13:38','2025-11-06 15:31:26'),(2,1,'用户权限管理','system.account',1,'','settings_applications',1,1,1,'2025-11-06 14:13:38','2025-11-06 15:44:55'),(3,2,'用户管理','system.account.user',1,'page/account/user.html','person',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(4,3,'新增用户','system.account.user.add',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(5,3,'编辑用户','system.account.user.edit',2,'','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(6,3,'删除用户','system.account.user.delete',2,'','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(7,3,'刷新列表','system.account.user.refresh',2,'','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(8,3,'获取用户列表','system.account.user.api.list',3,'/admin/user/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(9,3,'获取用户信息','system.account.user.api.info',3,'/admin/user/info','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(10,3,'新增用户接口','system.account.user.api.add',3,'/admin/user/add','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(11,3,'更新用户接口','system.account.user.api.update',3,'/admin/user/update','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(12,3,'删除用户接口','system.account.user.api.delete',3,'/admin/user/delete','',5,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(13,3,'更新用户状态接口','system.account.user.api.update-status',3,'/admin/user/update-status','',6,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(14,3,'获取当前用户信息','system.account.user.api.current-info',3,'/admin/user/current-info','',7,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(15,2,'角色管理','system.account.role',1,'page/account/role.html','group',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(16,15,'新增角色','system.account.role.add',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(17,15,'编辑角色','system.account.role.edit',2,'','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(18,15,'删除角色','system.account.role.delete',2,'','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(19,15,'刷新列表','system.account.role.refresh',2,'','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(20,15,'获取角色列表','system.account.role.api.list',3,'/admin/role/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(21,15,'获取角色详情','system.account.role.api.detail',3,'/admin/role/detail','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(22,15,'获取编辑角色信息','system.account.role.api.edit-info',3,'/admin/role/edit-info','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(23,15,'新增角色接口','system.account.role.api.add',3,'/admin/role/add','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(24,15,'更新角色接口','system.account.role.api.update',3,'/admin/role/update','',5,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(25,15,'删除角色接口','system.account.role.api.delete',3,'/admin/role/delete','',6,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(26,15,'更新角色状态接口','system.account.role.api.update-status',3,'/admin/role/update-status','',7,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(27,15,'更新是否系统角色接口','system.account.role.api.update-is-system',3,'/admin/role/update-is-system','',8,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(28,15,'获取所有权限接口','system.account.role.api.get-all-permissions',3,'/admin/role/get-all-permissions','',9,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(29,15,'获取用户角色和权限','system.account.role.api.get-user-role-permissions',3,'/admin/role/get-user-role-permissions','',10,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(30,2,'权限管理','system.account.permission',1,'page/account/permission.html','lock',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(31,30,'新增权限','system.account.permission.add',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(32,30,'编辑权限','system.account.permission.edit',2,'','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(33,30,'删除权限','system.account.permission.delete',2,'','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(34,30,'刷新列表','system.account.permission.refresh',2,'','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(35,30,'获取权限列表','system.account.permission.api.list',3,'/admin/permission/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(36,30,'获取编辑权限信息','system.account.permission.api.edit-info',3,'/admin/permission/edit-info','',2,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(37,30,'获取权限树','system.account.permission.api.get-tree',3,'/admin/permission/get-tree','',3,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(38,30,'新增权限接口','system.account.permission.api.add',3,'/admin/permission/add','',4,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(39,30,'更新权限接口','system.account.permission.api.update',3,'/admin/permission/update','',5,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(40,30,'删除权限接口','system.account.permission.api.delete',3,'/admin/permission/delete','',6,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(41,30,'更新权限状态接口','system.account.permission.api.update-status',3,'/admin/permission/update-status','',7,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(42,30,'更新是否系统权限接口','system.account.permission.api.update-is-system',3,'/admin/permission/update-is-system','',8,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(43,1,'后台日志','system.log',1,'','markunread_mailbox',2,1,1,'2025-11-06 14:13:38','2025-11-06 15:31:26'),(44,43,'登录日志','system.log.login',1,'page/log/login.html','history',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(45,44,'查询登录日志','system.log.login.query',2,'','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(46,44,'获取登录日志列表','system.log.login.api.list',3,'/admin/login-log/list','',1,1,1,'2025-11-06 14:13:38','2025-11-06 14:13:38'),(47,3,'用户管理列表查询','system.accout.user.query',2,'','',0,1,0,'2025-11-06 16:03:52','2025-11-06 16:03:52'),(48,15,'角色管理列表查询','system.account.role.query',2,'','',0,1,0,'2025-11-06 16:04:53','2025-11-06 16:05:14'),(49,30,'权限管理列表查询','system.account.permission.query',2,'','',1,1,0,'2025-11-06 16:07:37','2025-11-06 16:24:19'),(50,1,'信息管理','system.profile',1,'','history',0,1,1,'2025-11-06 19:04:29','2025-11-06 19:08:40'),(51,50,'个人信息','system.profile.info',1,'page/profile/profile.html','',0,1,1,'2025-11-06 19:06:14','2025-11-06 19:09:00'),(52,51,'个人信息更新','system.profile.info.updateProfile',2,'','',0,1,0,'2025-11-07 11:34:54','2025-11-07 11:34:54'),(53,51,'修改密码','system.profile.info.password',2,'','',0,1,0,'2025-11-07 11:35:43','2025-11-07 11:35:43'),(54,51,'绑定与解绑手机号码','system.profile.info.mobile',2,'','',0,1,0,'2025-11-07 11:36:27','2025-11-07 11:36:27'),(55,51,'修改密码','system.profile.info.password.changePassword',3,'/admin/user/change-password','',0,1,0,'2025-11-07 11:40:36','2025-11-07 11:43:27'),(56,51,'绑定手机号','system.profile.info.bindMobile',3,'/admin/user/bind-mobile','',0,1,0,'2025-11-07 11:41:30','2025-11-07 11:46:28'),(57,51,'解绑手机号','system.profile.info.unbindMobile',3,'/admin/user/unbind-mobile','',0,1,0,'2025-11-07 11:42:21','2025-11-07 12:20:00'),(58,1,'部门管理','system.department',1,'','lock',0,1,0,'2025-11-26 12:40:51','2025-11-26 14:19:19'),(59,58,'部门列表管理','system.department.dept',1,'page/department/dept.html','',0,1,0,'2025-11-26 14:21:43','2025-11-26 14:21:43'),(60,59,'部门查询','system.department.dept.query',2,'','',0,1,0,'2025-11-26 14:22:48','2025-11-26 14:22:48'),(61,59,'部门新增','system.department.dept.add',2,'','',0,1,0,'2025-11-26 14:23:16','2025-11-26 14:23:16'),(62,59,'部门刷新','system.department.dept.refresh',2,'','',0,1,0,'2025-11-26 14:23:41','2025-11-26 14:23:41'),(63,59,'部门修改','system.department.dept.edit',2,'','',0,1,0,'2025-11-26 14:24:23','2025-11-26 14:24:23'),(64,59,'添加员工','system.department.dept.user.add',2,'','',0,1,0,'2025-11-26 14:24:51','2025-11-26 14:24:51'),(65,59,'删除部门','system.department.dept.delete',2,'','',0,1,0,'2025-11-26 14:25:11','2025-11-26 14:25:11');
 /*!40000 ALTER TABLE `admin_permissions` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -165,14 +166,16 @@ CREATE TABLE `admin_user_depts` (
   `user_id` bigint(20) unsigned NOT NULL COMMENT '用户ID',
   `dept_id` bigint(20) unsigned NOT NULL COMMENT '部门ID',
   `is_primary` tinyint(4) NOT NULL DEFAULT '0' COMMENT '是否主要部门：1是，0否',
+  `is_manager` tinyint(4) NOT NULL DEFAULT '0' COMMENT '是否部门管理员：1是，0否',
   `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1启用，0禁用',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `uk_user_dept` (`user_id`,`dept_id`) USING BTREE,
   KEY `idx_user_id` (`user_id`) USING BTREE,
-  KEY `idx_dept_id` (`dept_id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户部门关联表';
+  KEY `idx_dept_id` (`dept_id`) USING BTREE,
+  KEY `idx_dept_manager` (`dept_id`,`is_manager`,`status`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户部门关联表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -181,6 +184,7 @@ CREATE TABLE `admin_user_depts` (
 
 LOCK TABLES `admin_user_depts` WRITE;
 /*!40000 ALTER TABLE `admin_user_depts` DISABLE KEYS */;
+INSERT INTO `admin_user_depts` VALUES (4,1,1,0,0,1,'2025-11-26 16:44:54','2025-11-26 16:44:54'),(6,2,2,1,1,1,'2025-11-26 16:53:52','2025-11-26 17:12:11'),(7,1,2,1,0,1,'2025-11-26 17:00:50','2025-11-26 17:11:44'),(8,2,1,0,1,1,'2025-11-26 17:00:55','2025-11-26 17:12:16');
 /*!40000 ALTER TABLE `admin_user_depts` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -205,7 +209,7 @@ CREATE TABLE `admin_user_login_logs` (
   KEY `idx_login_time` (`login_time`) USING BTREE,
   KEY `idx_login_status` (`login_status`) USING BTREE,
   KEY `idx_login_type` (`login_type`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户登录日志表';
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户登录日志表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -214,7 +218,7 @@ CREATE TABLE `admin_user_login_logs` (
 
 LOCK TABLES `admin_user_login_logs` WRITE;
 /*!40000 ALTER TABLE `admin_user_login_logs` DISABLE KEYS */;
-INSERT INTO `admin_user_login_logs` VALUES (1,1,'logout','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',1,'用户主动登出','2025-11-07 15:02:53'),(2,1,'mobile','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',1,'','2025-11-07 15:03:53');
+INSERT INTO `admin_user_login_logs` VALUES (1,1,'logout','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',1,'用户主动登出','2025-11-07 15:02:53'),(2,1,'mobile','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',1,'','2025-11-07 15:03:53'),(3,1,'mobile','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',1,'','2025-11-26 11:33:34'),(4,1,'mobile','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',1,'','2025-11-26 11:36:02'),(5,1,'mobile','::1','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',1,'','2025-11-26 12:39:36');
 /*!40000 ALTER TABLE `admin_user_login_logs` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -241,7 +245,7 @@ CREATE TABLE `admin_user_logins` (
   KEY `idx_user_id` (`user_id`) USING BTREE,
   KEY `idx_login_type` (`login_type`) USING BTREE,
   KEY `idx_status` (`status`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户登录方式表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户登录方式表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -250,7 +254,7 @@ CREATE TABLE `admin_user_logins` (
 
 LOCK TABLES `admin_user_logins` WRITE;
 /*!40000 ALTER TABLE `admin_user_logins` DISABLE KEYS */;
-INSERT INTO `admin_user_logins` VALUES (1,1,'mobile','13013013000','','',1,'2025-11-07 15:03:52','2025-11-07 15:03:52');
+INSERT INTO `admin_user_logins` VALUES (1,1,'mobile','13013013000','','',1,'2025-11-07 15:03:52','2025-11-07 15:03:52'),(2,2,'username','admin','44106e4b012b6086fd50ec83afc50409531e2d681e4e9e312ed543ee56b15421','5bb75ea9b14b5ff38d503c6841624753',1,'2025-11-26 16:53:35','2025-11-26 16:53:35'),(3,2,'mobile','13813813888','','',1,'2025-11-26 16:53:35','2025-11-26 16:53:35');
 /*!40000 ALTER TABLE `admin_user_logins` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -271,7 +275,7 @@ CREATE TABLE `admin_user_roles` (
   UNIQUE KEY `uk_user_role` (`user_id`,`role_id`) USING BTREE,
   KEY `idx_user_id` (`user_id`) USING BTREE,
   KEY `idx_role_id` (`role_id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -280,7 +284,7 @@ CREATE TABLE `admin_user_roles` (
 
 LOCK TABLES `admin_user_roles` WRITE;
 /*!40000 ALTER TABLE `admin_user_roles` DISABLE KEYS */;
-INSERT INTO `admin_user_roles` VALUES (10,1,1,'2025-11-06 14:38:12','2025-11-06 14:38:12'),(11,2,3,'2025-11-07 12:19:05','2025-11-07 12:19:05');
+INSERT INTO `admin_user_roles` VALUES (10,1,1,'2025-11-06 14:38:12','2025-11-06 14:38:12'),(11,2,3,'2025-11-07 12:19:05','2025-11-07 12:19:05'),(12,2,1,'2025-11-26 16:53:35','2025-11-26 16:53:35');
 /*!40000 ALTER TABLE `admin_user_roles` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -314,7 +318,7 @@ CREATE TABLE `admin_users` (
   UNIQUE KEY `uk_email` (`email`) USING BTREE,
   KEY `idx_status` (`status`) USING BTREE,
   KEY `idx_user_source` (`user_source`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户基础信息表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户基础信息表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -323,7 +327,7 @@ CREATE TABLE `admin_users` (
 
 LOCK TABLES `admin_users` WRITE;
 /*!40000 ALTER TABLE `admin_users` DISABLE KEYS */;
-INSERT INTO `admin_users` VALUES (1,'13013013000','Taurus','stones','','13013013000','demo@taurus.com',1,'1900-01-01','',1,1,'2025-11-07 15:03:53','::1','2025-11-07 15:03:52','2025-11-07 15:22:18');
+INSERT INTO `admin_users` VALUES (1,'13013013000','Taurus','stones','','13013013000','demo@taurus.com',1,'1900-01-01','',1,1,'2025-11-26 12:39:36','::1','2025-11-07 15:03:52','2025-11-26 12:39:36'),(2,'admin','admin','管理员1号','','13813813888',NULL,0,'1900-01-01','',1,3,NULL,'','2025-11-26 16:53:35','2025-11-26 16:53:35');
 /*!40000 ALTER TABLE `admin_users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -344,4 +348,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-11-07 15:28:55
+-- Dump completed on 2025-11-26 17:15:37

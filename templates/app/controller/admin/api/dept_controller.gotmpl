@@ -1,0 +1,605 @@
+package api
+
+import (
+	"{{.ProjectName}}/app/controller/admin/common"
+	"{{.ProjectName}}/app/helper"
+	"{{.ProjectName}}/app/model/dto"
+	"{{.ProjectName}}/app/service"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/google/wire"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tmap"
+	"github.com/stones-hub/taurus-pro-common/pkg/util/tstruct"
+	"github.com/stones-hub/taurus-pro-http/pkg/httpx"
+)
+
+type DeptController struct {
+	*common.BaseController
+	DeptService *service.AdminDeptService
+}
+
+var DeptControllerSet = wire.NewSet(wire.Struct(new(DeptController), "*"))
+
+// GetDeptList 获取部门列表接口（需登录）
+func (c *DeptController) GetDeptList(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 获取分页参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+	no := tmap.GetInt(body, "page_no", 1)                                // 当前页码
+	size := tmap.GetInt(body, "page_size", 15)                           // 每页条数
+	deptName := strings.TrimSpace(tmap.GetString(body, "dept_name", "")) // 部门名称（过滤前后空格）
+	status := tmap.GetInt(body, "status", -1)
+	log.Printf("dept_name(部门名称): %s, status(状态): %d", deptName, status)
+	response, err := c.DeptService.GetDeptList(r.Context(), no, size, deptName, status)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, "获取部门列表失败: "+err.Error())
+		return
+	}
+	c.Response(w, helper.CodeSuccess, "获取部门列表成功", response)
+}
+
+// GetDeptDetail 获取部门详情接口（需登录）
+func (c *DeptController) GetDeptDetail(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 获取部门ID
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+	deptID := tmap.GetInt64(body, "dept_id", 0)
+	if deptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+
+	// 4. 获取部门详情
+	response, err := c.DeptService.GetDeptDetail(r.Context(), uint64(deptID))
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, "获取部门详情失败: "+err.Error())
+		return
+	}
+	c.Response(w, helper.CodeSuccess, "获取部门详情成功", response)
+}
+
+type updateDeptStatusReq struct {
+	DeptID uint64 `json:"dept_id"`
+	Status int8   `json:"status"`
+}
+
+// UpdateDeptStatus 更新部门状态接口（需登录）
+func (c *DeptController) UpdateDeptStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	var req updateDeptStatusReq
+	if err := tstruct.MapToStructWithValidation(body, &req, "dept_id", "status"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 验证状态值
+	if req.Status != 0 && req.Status != 1 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "状态值必须为0(禁用)或1(启用)")
+		return
+	}
+
+	if err := c.DeptService.UpdateDeptStatus(r.Context(), req.DeptID, req.Status); err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	c.Response(w, helper.CodeSuccess, "状态更新成功", map[string]any{
+		"status": "success",
+		"value":  req.Status,
+	})
+}
+
+// DeleteDept 删除部门接口（需登录）
+// 注意：删除部门只能修改状态，并且当部门内有员工时，不可以删除部门
+func (c *DeptController) DeleteDept(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	deptID := tmap.GetInt64(body, "dept_id", 0)
+	if deptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+
+	if err := c.DeptService.DeleteDept(r.Context(), uint64(deptID)); err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	c.Response(w, helper.CodeSuccess, "删除部门成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// GetEditDeptInfo 获取编辑部门信息接口（需登录）
+func (c *DeptController) GetEditDeptInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	deptID := tmap.GetInt64(body, "dept_id", 0)
+	if deptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+
+	response, err := c.DeptService.GetEditDeptInfo(r.Context(), uint64(deptID))
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	c.Response(w, helper.CodeSuccess, "获取编辑部门信息成功", response)
+}
+
+// UpdateDept 更新部门接口（需登录）
+func (c *DeptController) UpdateDept(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	var req dto.UpdateDeptRequest
+	err = tstruct.MapToStruct(body, &req)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 过滤字符串字段的前后空格
+	req.DeptName = strings.TrimSpace(req.DeptName)
+	req.Description = strings.TrimSpace(req.Description)
+
+	// 验证必填字段
+	if req.DeptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+
+	if req.DeptName == "" {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门名称不能为空")
+		return
+	}
+
+	// 调用服务层更新部门
+	if err := c.DeptService.UpdateDept(r.Context(), &req); err != nil {
+		c.ErrorResponse(w, helper.CodeError, err.Error())
+		return
+	}
+
+	c.Response(w, helper.CodeSuccess, "更新部门成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// AddDept 新增部门接口（需登录）
+func (c *DeptController) AddDept(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	// 4. 验证必填参数并转换为DTO
+	var req dto.AddDeptRequest
+	if err := tstruct.MapToStructWithValidation(body, &req, "dept_name"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 4.5. 过滤字符串字段的前后空格
+	req.DeptName = strings.TrimSpace(req.DeptName)
+	req.DeptCode = strings.TrimSpace(req.DeptCode)
+	req.Description = strings.TrimSpace(req.Description)
+
+	// 5. 参数校验
+	if req.DeptName == "" {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门名称不能为空")
+		return
+	}
+
+	// 设置默认值
+	if req.SortOrder == 0 {
+		req.SortOrder = 0
+	}
+	if req.DeptSource == 0 {
+		req.DeptSource = 1 // 默认自主创建
+	}
+
+	// 6. 调用服务层新增部门
+	if err := c.DeptService.AddDept(r.Context(), &req); err != nil {
+		log.Printf("新增部门失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "新增部门失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "新增部门成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// GetDeptUserList 获取部门员工列表接口（需登录）
+func (c *DeptController) GetDeptUserList(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 获取参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+	deptID := tmap.GetInt64(body, "dept_id", 0)
+	if deptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+	no := tmap.GetInt(body, "page_no", 1)      // 当前页码
+	size := tmap.GetInt(body, "page_size", 15) // 每页条数
+
+	// 4. 获取部门员工列表
+	response, err := c.DeptService.GetDeptUserList(r.Context(), uint64(deptID), no, size)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, "获取部门员工列表失败: "+err.Error())
+		return
+	}
+	c.Response(w, helper.CodeSuccess, "获取部门员工列表成功", response)
+}
+
+// AddDeptUser 添加部门员工接口（需登录）
+func (c *DeptController) AddDeptUser(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	// 4. 验证必填参数并转换为DTO
+	var req dto.AddDeptUserRequest
+	if err := tstruct.MapToStructWithValidation(body, &req, "dept_id", "user_ids"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 5. 参数校验
+	if req.DeptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "用户ID数组不能为空")
+		return
+	}
+
+	// 设置默认值
+	if req.IsPrimary == 0 {
+		req.IsPrimary = 0
+	}
+	if req.IsManager == 0 {
+		req.IsManager = 0
+	}
+
+	// 6. 调用服务层添加部门员工
+	if err := c.DeptService.AddDeptUser(r.Context(), &req); err != nil {
+		log.Printf("添加部门员工失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "添加部门员工失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "添加部门员工成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// UpdateDeptUser 更新部门员工接口（需登录）
+func (c *DeptController) UpdateDeptUser(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	// 4. 验证必填参数并转换为DTO
+	var req dto.UpdateDeptUserRequest
+	if err := tstruct.MapToStructWithValidation(body, &req, "id"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 5. 参数校验
+	if req.ID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "关联ID不能为空")
+		return
+	}
+
+	// 6. 调用服务层更新部门员工
+	if err := c.DeptService.UpdateDeptUser(r.Context(), &req); err != nil {
+		log.Printf("更新部门员工失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "更新部门员工失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "更新部门员工成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// RemoveDeptUser 移除部门员工接口（需登录）
+func (c *DeptController) RemoveDeptUser(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 解析请求参数
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误")
+		return
+	}
+
+	// 4. 验证必填参数并转换为DTO
+	var req dto.RemoveDeptUserRequest
+	if err := tstruct.MapToStructWithValidation(body, &req, "id"); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, err.Error())
+		return
+	}
+
+	// 5. 参数校验
+	if req.ID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "关联ID不能为空")
+		return
+	}
+
+	// 6. 调用服务层移除部门员工
+	if err := c.DeptService.RemoveDeptUser(r.Context(), &req); err != nil {
+		log.Printf("移除部门员工失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "移除部门员工失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "移除部门员工成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// BatchUpdateDeptUser 批量更新部门员工接口（需登录）
+func (c *DeptController) BatchUpdateDeptUser(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeUnauthorized, "未授权访问")
+		return
+	}
+
+	// 3. 读取请求体原始数据
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "读取请求体失败")
+		return
+	}
+
+	fmt.Println("BatchUpdateDeptUser body: ", string(bodyBytes))
+
+	// 4. 使用 json.Unmarshal 解析，这样会调用自定义的 UnmarshalJSON
+	var req dto.BatchUpdateDeptUserRequest
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求参数格式错误: "+err.Error())
+		return
+	}
+
+	// 5. 参数校验
+	if req.DeptID == 0 {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "部门ID不能为空")
+		return
+	}
+
+	// 6. 调用服务层批量更新部门员工
+	if err := c.DeptService.BatchUpdateDeptUser(r.Context(), &req); err != nil {
+		log.Printf("批量更新部门员工失败: %v", err)
+		c.ErrorResponse(w, helper.CodeError, "批量更新部门员工失败: "+err.Error())
+		return
+	}
+
+	// 7. 返回成功响应
+	c.Response(w, helper.CodeSuccess, "批量更新部门员工成功", map[string]any{
+		"status": "success",
+	})
+}
+
+// GetAllDepts 获取所有部门列表接口（需登录，用于下拉框选择）
+func (c *DeptController) GetAllDepts(w http.ResponseWriter, r *http.Request) {
+	// 1. 验证请求方法
+	if r.Method != http.MethodPost {
+		c.ErrorResponse(w, helper.CodeInvalidParams, "请求方法错误")
+		return
+	}
+
+	// 2. 从JWT中间件设置的上下文中获取用户信息
+	_, ok := currentUserIDFromJWT(r)
+	if !ok {
+		c.ErrorResponse(w, helper.CodeNotFound, "未解析到用户ID")
+		return
+	}
+
+	// 3. 获取参数（可选：排除的部门ID，编辑时使用）
+	body, err := httpx.ParseJson(r)
+	if err != nil {
+		// 如果没有body，使用默认值
+		body = make(map[string]interface{})
+	}
+	excludeDeptID := tmap.GetInt64(body, "exclude_dept_id", 0)
+
+	// 4. 获取所有部门列表
+	response, err := c.DeptService.GetAllDepts(r.Context(), uint64(excludeDeptID))
+	if err != nil {
+		c.ErrorResponse(w, helper.CodeError, "获取部门列表失败: "+err.Error())
+		return
+	}
+
+	c.Response(w, helper.CodeSuccess, "获取部门列表成功", dto.GetAllDeptsResponse{
+		List: response,
+	})
+}

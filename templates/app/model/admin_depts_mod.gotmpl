@@ -1,0 +1,87 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminDept 部门表
+type AdminDept struct {
+	DeptID      uint64    `json:"dept_id" gorm:"primaryKey;autoIncrement;column:dept_id;comment:部门ID"`                                              // 部门ID
+	DeptName    string    `json:"dept_name" gorm:"size:100;not null;column:dept_name;comment:部门名称"`                                                 // 部门名称
+	ParentID    uint64    `json:"parent_id" gorm:"index:idx_parent_id;not null;default:0;column:parent_id;comment:父部门ID"`                           // 父部门ID
+	DeptCode    string    `json:"dept_code" gorm:"uniqueIndex:uk_dept_code;size:50;not null;default:'';column:dept_code;comment:部门编码"`              // 部门编码
+	Description string    `json:"description" gorm:"size:255;not null;default:'';column:description;comment:部门描述"`                                  // 部门描述
+	SortOrder   int       `json:"sort_order" gorm:"not null;default:0;column:sort_order;comment:排序"`                                                // 排序
+	DeptSource  int8      `json:"dept_source" gorm:"index:idx_dept_source;not null;default:1;column:dept_source;comment:部门来源：1自主创建，2企业微信同步，3其他SSO"` // 部门来源
+	ExternalID  string    `json:"external_id" gorm:"index:idx_external_id;size:100;not null;default:'';column:external_id;comment:外部系统ID"`          // 外部系统ID
+	Status      int8      `json:"status" gorm:"index:idx_status;not null;default:1;column:status;comment:状态：1启用，0禁用"`                               // 状态：1启用，0禁用
+	CreatedAt   time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                              // 创建时间
+	UpdatedAt   time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"`  // 修改时间
+}
+
+// TableName 指定表名
+func (AdminDept) TableName() string {
+	return "admin_depts"
+}
+
+func (AdminDept) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminDeptRepository struct {
+	dao.Repository[AdminDept]
+}
+
+func NewAdminDeptRepository() *AdminDeptRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminDept]()
+	if err != nil {
+		panic("创建AdminDeptRepository失败: " + err.Error())
+	}
+	return &AdminDeptRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminDeptRepositoryWithDB(db *gorm.DB) *AdminDeptRepository {
+	repo := dao.NewBaseRepository[AdminDept](db)
+	return &AdminDeptRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminDeptRepository) GetDB() *gorm.DB {
+	return (&AdminDept{}).DB()
+}
+
+// FindByDeptID 根据部门ID查找部门
+func (r *AdminDeptRepository) FindByDeptID(ctx context.Context, deptID uint64) (*AdminDept, error) {
+	return r.FindOneByCondition(ctx, "dept_id = ?", deptID)
+}
+
+// FindByDeptCode 根据部门编码查找部门
+func (r *AdminDeptRepository) FindByDeptCode(ctx context.Context, deptCode string) (*AdminDept, error) {
+	return r.FindOneByCondition(ctx, "dept_code = ?", deptCode)
+}
+
+// FindByParentID 根据父部门ID查找子部门列表
+func (r *AdminDeptRepository) FindByParentID(ctx context.Context, parentID uint64) ([]AdminDept, error) {
+	return r.FindByCondition(ctx, "parent_id = ?", parentID)
+}
+
+// CountByDeptIDAndStatus 统计指定部门ID且状态为status的记录数
+func (r *AdminDeptRepository) CountByDeptIDAndStatus(ctx context.Context, deptID uint64, status int8) (int64, error) {
+	return r.CountByCondition(ctx, "dept_id = ? AND status = ?", deptID, status)
+}

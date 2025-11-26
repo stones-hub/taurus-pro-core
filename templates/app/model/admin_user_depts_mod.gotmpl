@@ -1,0 +1,99 @@
+package model
+
+import (
+	"context"
+	"{{.ProjectName}}/internal/taurus"
+	"time"
+
+	"github.com/stones-hub/taurus-pro-storage/pkg/db/dao"
+	"gorm.io/gorm"
+)
+
+// AdminUserDept 用户部门关联表
+type AdminUserDept struct {
+	ID        uint64    `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:自增ID"`                                                       // 自增ID
+	UserID    uint64    `json:"user_id" gorm:"uniqueIndex:uk_user_dept;index:idx_user_id;not null;column:user_id;comment:用户ID"`                  // 用户ID
+	DeptID    uint64    `json:"dept_id" gorm:"uniqueIndex:uk_user_dept;index:idx_dept_id;not null;column:dept_id;comment:部门ID"`                  // 部门ID
+	IsPrimary int8      `json:"is_primary" gorm:"not null;default:0;column:is_primary;comment:是否主要部门：1是，0否"`                                     // 是否主要部门：1是，0否
+	IsManager int8      `json:"is_manager" gorm:"index:idx_dept_manager;not null;default:0;column:is_manager;comment:是否部门管理员：1是，0否"`             // 是否部门管理员：1是，0否
+	Status    int8      `json:"status" gorm:"index:idx_dept_manager;not null;default:1;column:status;comment:状态：1启用，0禁用"`                        // 状态：1启用，0禁用
+	CreatedAt time.Time `json:"created_at" gorm:"not null;default:CURRENT_TIMESTAMP;column:created_at;comment:创建时间"`                             // 创建时间
+	UpdatedAt time.Time `json:"updated_at" gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;column:updated_at;comment:修改时间"` // 修改时间
+}
+
+// TableName 指定表名
+func (AdminUserDept) TableName() string {
+	return "admin_user_depts"
+}
+
+func (AdminUserDept) DB() *gorm.DB {
+	db, exists := taurus.Container.DbList["default"]
+	if !exists {
+		for _, d := range taurus.Container.DbList {
+			db = d
+			break
+		}
+	}
+	return db
+}
+
+type AdminUserDeptRepository struct {
+	dao.Repository[AdminUserDept]
+}
+
+func NewAdminUserDeptRepository() *AdminUserDeptRepository {
+	repo, err := dao.NewBaseRepositoryWithDB[AdminUserDept]()
+	if err != nil {
+		panic("创建AdminUserDeptRepository失败: " + err.Error())
+	}
+	return &AdminUserDeptRepository{
+		Repository: repo,
+	}
+}
+
+func NewAdminUserDeptRepositoryWithDB(db *gorm.DB) *AdminUserDeptRepository {
+	repo := dao.NewBaseRepository[AdminUserDept](db)
+	return &AdminUserDeptRepository{
+		Repository: repo,
+	}
+}
+
+// GetDB 获取数据库连接
+func (r *AdminUserDeptRepository) GetDB() *gorm.DB {
+	return (&AdminUserDept{}).DB()
+}
+
+// FindByUserID 根据用户ID查找用户部门关联
+func (r *AdminUserDeptRepository) FindByUserID(ctx context.Context, userID uint64) ([]AdminUserDept, error) {
+	return r.FindByCondition(ctx, "user_id = ?", userID)
+}
+
+// FindByDeptID 根据部门ID查找用户部门关联
+func (r *AdminUserDeptRepository) FindByDeptID(ctx context.Context, deptID uint64) ([]AdminUserDept, error) {
+	return r.FindByCondition(ctx, "dept_id = ?", deptID)
+}
+
+// FindByDeptIDAndStatus 根据部门ID和状态查找用户部门关联
+func (r *AdminUserDeptRepository) FindByDeptIDAndStatus(ctx context.Context, deptID uint64, status int8) ([]AdminUserDept, error) {
+	return r.FindByCondition(ctx, "dept_id = ? AND status = ?", deptID, status)
+}
+
+// FindByUserIDAndDeptID 根据用户ID和部门ID查找关联
+func (r *AdminUserDeptRepository) FindByUserIDAndDeptID(ctx context.Context, userID, deptID uint64) (*AdminUserDept, error) {
+	return r.FindOneByCondition(ctx, "user_id = ? AND dept_id = ?", userID, deptID)
+}
+
+// FindManagerByDeptID 查找部门的leader（is_manager=1且status=1）
+func (r *AdminUserDeptRepository) FindManagerByDeptID(ctx context.Context, deptID uint64) (*AdminUserDept, error) {
+	return r.FindOneByCondition(ctx, "dept_id = ? AND is_manager = 1 AND status = 1", deptID)
+}
+
+// FindPrimaryByUserID 查找用户的主要部门（is_primary=1且status=1）
+func (r *AdminUserDeptRepository) FindPrimaryByUserID(ctx context.Context, userID uint64) (*AdminUserDept, error) {
+	return r.FindOneByCondition(ctx, "user_id = ? AND is_primary = 1 AND status = 1", userID)
+}
+
+// CountByDeptIDAndStatus 统计指定部门ID且状态为status的用户数
+func (r *AdminUserDeptRepository) CountByDeptIDAndStatus(ctx context.Context, deptID uint64, status int8) (int64, error) {
+	return r.CountByCondition(ctx, "dept_id = ? AND status = ?", deptID, status)
+}
