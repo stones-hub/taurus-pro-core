@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"esim/test/strategy/core"
-	"esim/test/strategy/service"
-	"esim/test/strategy/strategies"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/core"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/service"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/strategies"
 )
 
 // ExampleUsage 演示策略模式的使用

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"esim/test/strategy"
+	"github.com/stones-hub/taurus-pro-core/example/strategy"
 )
 
 func main() {

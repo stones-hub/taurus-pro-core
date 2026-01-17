@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"esim/test/strategy/core"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/core"
 )
 
 // EmailNotifier 邮件通知策略实现

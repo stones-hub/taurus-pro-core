@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"esim/test/strategy/core"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/core"
 )
 
 // WechatNotifier 微信通知策略实现

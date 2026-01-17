@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sync"
 
-	"esim/test/strategy/core"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/core"
 )
 
 // NotificationService 通知服务

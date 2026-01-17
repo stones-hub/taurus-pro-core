@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"esim/test/strategy/core"
-	"esim/test/strategy/service"
-	"esim/test/strategy/strategies"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/core"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/service"
+	"github.com/stones-hub/taurus-pro-core/example/strategy/strategies"
 )
 
 // TestNotifierRegistry 测试策略注册表
